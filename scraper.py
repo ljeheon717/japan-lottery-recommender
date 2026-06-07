@@ -4,7 +4,9 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+}
 
 URLS = {
     "loto6": "https://www.mizuhobank.co.jp/takarakuji/loto/loto6/index.html",
@@ -49,7 +51,9 @@ def fetch_loto6(limit: int = 10) -> list[dict]:
             bonus_text = cells[8].get_text(strip=True) if len(cells) > 8 else ""
             bonus = [int(bonus_text)] if bonus_text.isdigit() else []
             if nums:
-                results.append({"round": round_no, "date": date, "numbers": nums, "bonus": bonus})
+                results.append(
+                    {"round": round_no, "date": date, "numbers": nums, "bonus": bonus}
+                )
         return results
     except Exception as e:
         return [{"error": str(e)}]
@@ -85,7 +89,9 @@ def fetch_loto7(limit: int = 10) -> list[dict]:
                 if t.isdigit():
                     bonus.append(int(t))
             if nums:
-                results.append({"round": round_no, "date": date, "numbers": nums, "bonus": bonus})
+                results.append(
+                    {"round": round_no, "date": date, "numbers": nums, "bonus": bonus}
+                )
         return results
     except Exception as e:
         return [{"error": str(e)}]
@@ -118,7 +124,9 @@ def fetch_miniloto(limit: int = 10) -> list[dict]:
             bonus_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
             bonus = [int(bonus_text)] if bonus_text.isdigit() else []
             if nums:
-                results.append({"round": round_no, "date": date, "numbers": nums, "bonus": bonus})
+                results.append(
+                    {"round": round_no, "date": date, "numbers": nums, "bonus": bonus}
+                )
         return results
     except Exception as e:
         return [{"error": str(e)}]

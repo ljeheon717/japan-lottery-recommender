@@ -22,8 +22,8 @@ HEADERS = {
 }
 
 LYZER_URLS = {
-    "loto6":    "https://lottolyzer.com/history/japan/loto-6/page/{page}/per-page/50",
-    "loto7":    "https://lottolyzer.com/history/japan/loto-7/page/{page}/per-page/50",
+    "loto6": "https://lottolyzer.com/history/japan/loto-6/page/{page}/per-page/50",
+    "loto7": "https://lottolyzer.com/history/japan/loto-7/page/{page}/per-page/50",
     "miniloto": "https://lottolyzer.com/history/japan/mini-loto/page/{page}/per-page/50",
 }
 
@@ -31,25 +31,100 @@ BONUS_COUNTS = {"loto6": 1, "loto7": 2, "miniloto": 1}
 
 FALLBACK_DATA = {
     "loto6": [
-        {"round": "2109", "date": "2026-06-07", "numbers": [3, 11, 18, 26, 35, 42], "bonus": [20]},
-        {"round": "2108", "date": "2026-06-04", "numbers": [2, 5, 10, 15, 28, 43], "bonus": [27]},
-        {"round": "2107", "date": "2026-06-01", "numbers": [5, 8, 27, 32, 36, 39], "bonus": [38]},
-        {"round": "2106", "date": "2026-05-28", "numbers": [1, 6, 17, 27, 34, 43], "bonus": [24]},
-        {"round": "2105", "date": "2026-05-25", "numbers": [3, 12, 19, 24, 32, 41], "bonus": [8]},
+        {
+            "round": "2109",
+            "date": "2026-06-07",
+            "numbers": [3, 11, 18, 26, 35, 42],
+            "bonus": [20],
+        },
+        {
+            "round": "2108",
+            "date": "2026-06-04",
+            "numbers": [2, 5, 10, 15, 28, 43],
+            "bonus": [27],
+        },
+        {
+            "round": "2107",
+            "date": "2026-06-01",
+            "numbers": [5, 8, 27, 32, 36, 39],
+            "bonus": [38],
+        },
+        {
+            "round": "2106",
+            "date": "2026-05-28",
+            "numbers": [1, 6, 17, 27, 34, 43],
+            "bonus": [24],
+        },
+        {
+            "round": "2105",
+            "date": "2026-05-25",
+            "numbers": [3, 12, 19, 24, 32, 41],
+            "bonus": [8],
+        },
     ],
     "loto7": [
-        {"round": "701", "date": "2026-06-06", "numbers": [4, 9, 15, 20, 26, 32, 37], "bonus": [12, 23]},
-        {"round": "700", "date": "2026-05-30", "numbers": [3, 8, 14, 19, 25, 31, 37], "bonus": [11, 22]},
-        {"round": "699", "date": "2026-05-23", "numbers": [2, 9, 15, 20, 26, 32, 36], "bonus": [7, 18]},
-        {"round": "698", "date": "2026-05-16", "numbers": [4, 10, 16, 21, 27, 33, 35], "bonus": [13, 24]},
-        {"round": "697", "date": "2026-05-09", "numbers": [1, 6, 12, 17, 23, 29, 34], "bonus": [9, 20]},
+        {
+            "round": "701",
+            "date": "2026-06-06",
+            "numbers": [4, 9, 15, 20, 26, 32, 37],
+            "bonus": [12, 23],
+        },
+        {
+            "round": "700",
+            "date": "2026-05-30",
+            "numbers": [3, 8, 14, 19, 25, 31, 37],
+            "bonus": [11, 22],
+        },
+        {
+            "round": "699",
+            "date": "2026-05-23",
+            "numbers": [2, 9, 15, 20, 26, 32, 36],
+            "bonus": [7, 18],
+        },
+        {
+            "round": "698",
+            "date": "2026-05-16",
+            "numbers": [4, 10, 16, 21, 27, 33, 35],
+            "bonus": [13, 24],
+        },
+        {
+            "round": "697",
+            "date": "2026-05-09",
+            "numbers": [1, 6, 12, 17, 23, 29, 34],
+            "bonus": [9, 20],
+        },
     ],
     "miniloto": [
-        {"round": "1306", "date": "2026-06-03", "numbers": [4, 11, 18, 25, 30], "bonus": [9]},
-        {"round": "1305", "date": "2026-05-27", "numbers": [3, 10, 17, 24, 29], "bonus": [8]},
-        {"round": "1304", "date": "2026-05-20", "numbers": [5, 12, 19, 22, 31], "bonus": [14]},
-        {"round": "1303", "date": "2026-05-13", "numbers": [2, 9, 15, 21, 28], "bonus": [6]},
-        {"round": "1302", "date": "2026-05-06", "numbers": [7, 13, 18, 25, 30], "bonus": [11]},
+        {
+            "round": "1306",
+            "date": "2026-06-03",
+            "numbers": [4, 11, 18, 25, 30],
+            "bonus": [9],
+        },
+        {
+            "round": "1305",
+            "date": "2026-05-27",
+            "numbers": [3, 10, 17, 24, 29],
+            "bonus": [8],
+        },
+        {
+            "round": "1304",
+            "date": "2026-05-20",
+            "numbers": [5, 12, 19, 22, 31],
+            "bonus": [14],
+        },
+        {
+            "round": "1303",
+            "date": "2026-05-13",
+            "numbers": [2, 9, 15, 21, 28],
+            "bonus": [6],
+        },
+        {
+            "round": "1302",
+            "date": "2026-05-06",
+            "numbers": [7, 13, 18, 25, 30],
+            "bonus": [11],
+        },
     ],
 }
 
@@ -59,6 +134,7 @@ _mem: dict = {}
 
 def _fetch_page(ltype: str, page: int) -> list:
     from bs4 import BeautifulSoup
+
     url = LYZER_URLS[ltype].format(page=page)
     try:
         req = urllib.request.Request(url, headers=HEADERS)
@@ -81,10 +157,13 @@ def _fetch_page(ltype: str, page: int) -> list:
             bonus_raw = cells[3].get_text(strip=True)
 
             nums = sorted([int(n) for n in nums_raw.split(",") if n.strip().isdigit()])
-            bonus = sorted([int(n) for n in bonus_raw.split(",") if n.strip().isdigit()])
+            bonus = sorted(
+                [int(n) for n in bonus_raw.split(",") if n.strip().isdigit()]
+            )
             if nums:
-                results.append({"round": round_no, "date": date,
-                                 "numbers": nums, "bonus": bonus})
+                results.append(
+                    {"round": round_no, "date": date, "numbers": nums, "bonus": bonus}
+                )
         return results
     except Exception:
         return []

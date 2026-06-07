@@ -13,8 +13,8 @@ app = Flask(
 )
 
 LOTTERIES = {
-    "loto6":    {"name": "ロト6",    "min": 1, "max": 43, "pick": 6, "bonus": 1},
-    "loto7":    {"name": "ロト7",    "min": 1, "max": 37, "pick": 7, "bonus": 2},
+    "loto6": {"name": "ロト6", "min": 1, "max": 43, "pick": 6, "bonus": 1},
+    "loto7": {"name": "ロト7", "min": 1, "max": 37, "pick": 7, "bonus": 2},
     "miniloto": {"name": "ミニロト", "min": 1, "max": 31, "pick": 5, "bonus": 1},
 }
 
