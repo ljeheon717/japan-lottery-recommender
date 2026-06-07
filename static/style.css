@@ -496,6 +496,62 @@ header .subtitle {
   line-height: 36px;
 }
 
+/* ── 내 번호 기록 ──────────────────────────────── */
+.my-number-row {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.my-number-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.my-number-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.delete-btn {
+  padding: 4px 10px;
+  border: 1px solid rgba(252, 129, 129, 0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: #fc8181;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.delete-btn:hover {
+  background: rgba(252, 129, 129, 0.12);
+}
+.empty-state {
+  text-align: center;
+  padding: 32px;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+.save-success {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(72, 187, 120, 0.1);
+  color: #68d391;
+  border: 1px solid rgba(72, 187, 120, 0.25);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+#my-numbers-list {
+  margin-top: 20px;
+}
+#my-save-msg {
+  min-height: 4px;
+}
+
 @media (max-width: 480px) {
   header h1 {
     font-size: 1.4rem;
