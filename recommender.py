@@ -3,6 +3,7 @@
 - random   : 순수 랜덤
 - frequency: 전체 이력 빈도 가중치
 - saju     : 음력 일진(천간) 오행 기반
+- mypick   : 내 구매 기록의 번호 풀에서 조합 (낙첨 조합 번호는 우선 가중치 부여)
 공통: 과거 당첨 조합 항상 제외, 고정 번호, 이전 회차 번호 간헐 포함
 """
 
@@ -17,6 +18,7 @@ _CHEONGAN = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계
 _OHANG_KO = {"木": "목(木)", "火": "화(火)", "土": "토(土)", "金": "금(金)", "水": "수(水)"}
 
 RECENT_NUM_PROB = 0.4  # 최근 회차 번호 1개 포함 확률
+MYPICK_LOSE_BOOST = 2.5  # 낙첨(당첨 번호 0개 일치) 조합의 번호 가중치 배수
 
 
 def _ohang_groups(max_n: int) -> dict:
@@ -56,6 +58,32 @@ def _calc_freq(ltype: str, max_n: int) -> dict:
     return {n: counter.get(n, 0) / total for n in range(1, max_n + 1)}
 
 
+def _mypick_weights(max_n: int, pool: list) -> tuple:
+    """
+    선택한 구매 기록들의 번호로 가중치 맵 구성
+    - 선택 기록 내 출현 빈도를 기본 가중치로 사용
+    - 낙첨 조합(당첨 번호 0개 일치)에 포함된 번호는 MYPICK_LOSE_BOOST배 가산
+      ("아직 안 나왔으니 나올 때가 됐다"는 관점에서 우선 추천)
+    반환: (가중치 dict, 낙첨 조합 유래 번호 set, 선택 기록 수)
+    """
+    counter = Counter()
+    lose_numbers = set()
+    for rec in pool:
+        nums = [n for n in rec.get("numbers", []) if 1 <= n <= max_n]
+        for n in nums:
+            counter[n] += 1
+        if rec.get("match_count") == 0:
+            lose_numbers.update(nums)
+
+    weights = {}
+    for n in range(1, max_n + 1):
+        w = float(counter.get(n, 0))
+        if n in lose_numbers:
+            w = (w + 1.0) * MYPICK_LOSE_BOOST
+        weights[n] = w if w > 0 else 0.05
+    return weights, lose_numbers, len(pool)
+
+
 def _recent_pool(ltype: str, max_n: int, last_n: int = 3) -> list:
     """최근 last_n 회차 당첨 번호 풀"""
     data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
@@ -75,11 +103,17 @@ def recommend_multi(
     fixed: Optional[list] = None,
     count: int = 1,
     target_date: Optional[date] = None,
+    mypick_pool: Optional[list] = None,
 ) -> list[dict]:
     """
-    modes: ['random', 'frequency', 'saju'] 중 복수 선택
+    modes: ['random', 'frequency', 'saju', 'mypick'] 중 복수 선택
     각 mode별로 count개 생성 → 그룹으로 반환
     과거 당첨 조합 제외는 항상 적용
+
+    mypick_pool: 'mypick' 모드 선택 시, 사용자가 고른 구매 기록 목록
+                 [{"numbers": [...], "match_count": int|None}, ...]
+                 해당 기록들의 번호를 조합 풀로 사용하고,
+                 낙첨(0개 일치) 기록의 번호는 가중치를 높여 우선 추천한다
     """
     if not modes:
         modes = ["random"]
@@ -95,26 +129,35 @@ def recommend_multi(
     ohang_groups = _ohang_groups(max_n)
     recent = _recent_pool(ltype, max_n)
 
+    mypick_weights = mypick_lose = None
+    mypick_count = 0
+    if "mypick" in modes:
+        mypick_weights, mypick_lose, mypick_count = _mypick_weights(max_n, mypick_pool or [])
+
+    mypick_ctx = (mypick_weights, mypick_lose, mypick_count)
+
     results = []
     for _ in range(count):
-        if len(modes) == 1:
+        if len(modes) == 1 and "mypick" not in modes:
             mode = modes[0]
             r = _pick_one(max_n, pick, bonus_count, mode,
                           fixed, past_sets, freq, ohang, ohang_groups, recent, today)
             r["mode"] = mode
         else:
-            # 복수 방식: 통합 가중치로 단일 세트 생성
+            # 복수 방식 / mypick 포함: 통합 가중치로 단일 세트 생성
             r = _pick_combined(max_n, pick, bonus_count, modes,
-                               fixed, past_sets, freq, ohang, ohang_groups, recent, today)
+                               fixed, past_sets, freq, ohang, ohang_groups, recent, today,
+                               mypick_ctx)
             r["mode"] = "+".join(modes)
         results.append(r)
     return results
 
 
-def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
+def _combined_weights(candidates, modes, freq, ohang, ohang_groups, mypick_ctx) -> list:
     """각 방식의 가중치를 곱해 통합 점수 산출"""
     weights = []
     ohang_nums = set(ohang_groups.get(ohang, [])) if ohang else set()
+    mypick_weights = mypick_ctx[0] if mypick_ctx else None
 
     for n in candidates:
         w = 1.0
@@ -124,6 +167,9 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
         if "saju" in modes:
             # 오행: 해당 그룹이면 3배 가산
             w *= 3.0 if n in ohang_nums else 1.0
+        if "mypick" in modes and mypick_weights:
+            # 내 구매 기록 풀의 출현 빈도 + 낙첨 조합 번호 가산
+            w *= mypick_weights.get(n, 0.05)
         if "random" in modes:
             w *= 1.0
         weights.append(w)
@@ -131,7 +177,8 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
 
 
 def _pick_combined(max_n, pick, bonus_count, modes,
-                   fixed, past_sets, freq, ohang, ohang_groups, recent, today) -> dict:
+                   fixed, past_sets, freq, ohang, ohang_groups, recent, today,
+                   mypick_ctx=None) -> dict:
     pool = list(range(1, max_n + 1))
     retries = 0
 
@@ -148,7 +195,7 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     while True:
         need = pick - len(effective_fixed)
         candidates = [n for n in pool if n not in effective_fixed]
-        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups)
+        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups, mypick_ctx)
         chosen = _weighted_sample(candidates, weights, need)
         nums = sorted(effective_fixed + chosen)
         retries += 1
@@ -160,12 +207,13 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
     reason = _build_combined_reason(nums, modes, fixed, lucky_num,
-                                    ohang, freq, ohang_groups, retries - 1, max_n, today)
+                                    ohang, freq, ohang_groups, retries - 1, max_n, today,
+                                    mypick_ctx)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
 def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
-                            ohang_groups, retries, max_n, today) -> list:
+                            ohang_groups, retries, max_n, today, mypick_ctx=None) -> list:
     reasons = []
     if fixed:
         reasons.append(f"고정 번호 {fixed} 포함")
@@ -188,6 +236,20 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
         reasons.append(f"오행 기여 — 오늘 일진: {cg}일 → {ohang_ko}")
         if ohang_nums:
             reasons.append(f"오행 해당 번호: {ohang_nums}")
+
+    # 내 구매 기록 기여
+    if "mypick" in modes and mypick_ctx:
+        mypick_weights, lose_numbers, pool_count = mypick_ctx
+        if pool_count:
+            reasons.append(f"내 구매 기록 {pool_count}건의 번호 풀에서 조합")
+            mine = [n for n in nums if mypick_weights and mypick_weights.get(n, 0) > 0.05]
+            if mine:
+                reasons.append(f"구매 기록 포함 번호: {mine}")
+            lose_hit = [n for n in nums if n in lose_numbers]
+            if lose_hit:
+                reasons.append(f"낙첨 조합(당첨 0개 일치) 번호 우선 반영: {lose_hit}")
+        else:
+            reasons.append("선택된 구매 기록이 없어 무작위로 보완")
 
     # 랜덤이 포함된 경우
     if "random" in modes and len(modes) > 1:

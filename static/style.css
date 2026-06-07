@@ -219,8 +219,57 @@ header .subtitle { margin-top: 6px; color: #a0aec0; font-size: 0.95rem; }
 .page-btn.nav { font-size: 1rem; }
 .page-ellipsis { color: #4a5568; line-height: 36px; }
 
+.hidden { display: none !important; }
+
+/* 구매 기록 입력 폼 */
+.purchase-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.purchase-input {
+  padding: 8px 12px; border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06); color: #e0e0e0;
+  font-size: 0.9rem;
+}
+.purchase-input:focus { outline: none; border-color: #ffd700; }
+.purchase-input { width: 130px; }
+.purchase-input-wide { width: 280px; flex: 1; min-width: 200px; }
+
+/* 구매 기록 목록 */
+.purchase-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.purchase-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 12px 14px;
+}
+.purchase-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: #ffd700; cursor: pointer; }
+.purchase-meta { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+.purchase-round { font-size: 0.78rem; color: #718096; font-weight: 600; }
+.purchase-del-btn {
+  background: none; border: 1px solid rgba(245,101,101,0.35); color: #fc8181;
+  border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; cursor: pointer;
+}
+.purchase-del-btn:hover { background: rgba(245,101,101,0.12); }
+
+.match-badge {
+  display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
+  font-size: 0.74rem; font-weight: 700;
+}
+.match-badge.lose   { background: rgba(99,179,237,0.15);  color: #90cdf4; border: 1px solid rgba(99,179,237,0.3); }
+.match-badge.hit    { background: rgba(72,187,120,0.15);  color: #68d391; border: 1px solid rgba(72,187,120,0.3); }
+.match-badge.unknown{ background: rgba(160,174,192,0.12); color: #a0aec0; border: 1px solid rgba(160,174,192,0.25); }
+
+.empty-msg { text-align: center; padding: 24px; color: #718096; font-size: 0.88rem; }
+
+/* 내 번호 조합 패널 */
+.mypick-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.mypick-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px 10px; font-size: 0.82rem;
+}
+.mypick-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #ffd700; cursor: pointer; }
+
 @media (max-width: 480px) {
   header h1 { font-size: 1.4rem; }
   .card { padding: 16px; }
   .ball { width: 32px; height: 32px; font-size: 0.78rem; }
+  .purchase-input, .purchase-input-wide { width: 100%; }
 }

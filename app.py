@@ -1,8 +1,9 @@
 import os
 from flask import Flask, jsonify, render_template, request
 from datetime import date
-from data import get_results
+from data import get_results, find_round
 from recommender import recommend_multi
+from storage import add_purchase, list_purchases, get_purchases_by_ids, delete_purchase
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,6 +46,16 @@ def api_generate(ltype, count):
         except (ValueError, TypeError):
             pass
 
+    mypick_pool = []
+    if "mypick" in modes:
+        purchase_ids = []
+        for v in body.get("purchase_ids", []):
+            try:
+                purchase_ids.append(int(v))
+            except (ValueError, TypeError):
+                pass
+        mypick_pool = get_purchases_by_ids(ltype, purchase_ids)
+
     results = recommend_multi(
         ltype=ltype,
         max_n=lot["max"],
@@ -54,8 +65,53 @@ def api_generate(ltype, count):
         fixed=fixed,
         count=count,
         target_date=date.today(),
+        mypick_pool=mypick_pool,
     )
     return jsonify({"results": results})
+
+
+@app.route("/api/purchases", methods=["GET", "POST"])
+def api_purchases():
+    if request.method == "GET":
+        ltype = request.args.get("ltype", "loto6")
+        if ltype not in LOTTERIES:
+            return jsonify({"error": "Unknown lottery type"}), 400
+        return jsonify({"purchases": list_purchases(ltype)})
+
+    body = request.get_json(silent=True) or {}
+    ltype = body.get("ltype")
+    round_no = str(body.get("round", "")).strip()
+    if ltype not in LOTTERIES or not round_no:
+        return jsonify({"error": "로또 종류와 회차를 입력해주세요"}), 400
+
+    lot = LOTTERIES[ltype]
+    numbers = []
+    for v in body.get("numbers", []):
+        try:
+            n = int(v)
+            if 1 <= n <= lot["max"] and n not in numbers:
+                numbers.append(n)
+        except (ValueError, TypeError):
+            pass
+    if len(numbers) != lot["pick"]:
+        return jsonify({"error": f"{lot['pick']}개의 번호를 입력해주세요"}), 400
+    numbers.sort()
+
+    winning = find_round(ltype, round_no)
+    match_count = len(set(numbers) & set(winning["numbers"])) if winning else None
+
+    record = add_purchase(ltype, round_no, numbers, match_count)
+    record["winning_numbers"] = winning["numbers"] if winning else None
+    return jsonify(record)
+
+
+@app.route("/api/purchases/<ltype>/<int:purchase_id>", methods=["DELETE"])
+def api_delete_purchase(ltype, purchase_id):
+    if ltype not in LOTTERIES:
+        return jsonify({"error": "Unknown lottery type"}), 400
+    if not delete_purchase(ltype, purchase_id):
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"ok": True})
 
 
 @app.route("/api/results/<ltype>")

@@ -15,6 +15,7 @@
 
     <div class="tabs">
       <button class="tab active" data-tab="generate">번호 추천</button>
+      <button class="tab" data-tab="purchases">내 구매 기록</button>
       <button class="tab" data-tab="results">당첨 번호</button>
     </div>
 
@@ -46,7 +47,17 @@
               <button class="mode-btn" data-mode="saju">
                 ☯️ 오행 기반
               </button>
+              <button class="mode-btn" data-mode="mypick">
+                🗂️ 내 번호 조합
+              </button>
             </div>
+          </div>
+
+          <!-- 내 번호 조합 안내/선택 -->
+          <div id="mypick-panel" class="control-group hidden">
+            <label>조합에 사용할 구매 기록 <span class="label-hint">(선택, '내 구매 기록' 탭에서 추가)</span></label>
+            <div id="mypick-list" class="mypick-list"></div>
+            <div class="label-hint">낙첨(당첨 번호 0개 일치) 조합의 번호는 우선 가중치로 추천에 반영됩니다</div>
           </div>
 
           <!-- 세트 수 -->
@@ -78,6 +89,37 @@
         </div>
         <button id="generate-btn" class="primary-btn">번호 생성 🎲</button>
         <div id="generate-result"></div>
+      </div>
+    </div>
+
+    <!-- 내 구매 기록 탭 -->
+    <div id="purchases" class="tab-content">
+      <div class="card">
+        <div class="controls">
+          <div class="control-group">
+            <label>로또 종류</label>
+            <div class="btn-group">
+              <button class="ptype-btn active" data-type="loto6">ロト6</button>
+              <button class="ptype-btn" data-type="loto7">ロト7</button>
+              <button class="ptype-btn" data-type="miniloto">ミニロト</button>
+            </div>
+          </div>
+          <div class="control-group">
+            <label>구매 기록 추가</label>
+            <div class="purchase-form">
+              <input id="purchase-round" class="purchase-input" type="text" placeholder="회차 (예: 2105)" />
+              <input id="purchase-numbers" class="purchase-input purchase-input-wide" type="text"
+                     placeholder="구매 번호 (쉼표로 구분, 예: 3,12,19,24,32,41)" />
+              <button id="purchase-add-btn" class="secondary-btn">기록 추가 ➕</button>
+            </div>
+            <div class="label-hint">회차 번호로 당첨 결과를 자동 조회해 일치 개수를 비교합니다 (조회 가능한 최근 이력 범위 내에서만)</div>
+          </div>
+          <div class="control-group">
+            <div class="info-badge">💡 기록을 체크하면 '번호 추천' 탭의 🗂️ 내 번호 조합 방식에서 해당 번호 풀로 추천을 생성합니다</div>
+          </div>
+        </div>
+        <div id="purchase-add-msg"></div>
+        <div id="purchase-list"></div>
       </div>
     </div>
 

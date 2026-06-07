@@ -12,6 +12,7 @@ build/
 
 # Data cache (local only)
 data/
+purchases.db
 
 # OS
 .DS_Store

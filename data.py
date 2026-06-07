@@ -132,3 +132,12 @@ def get_results(ltype: str, page: int = 1, per_page: int = 50) -> dict:
 def get_history(ltype: str) -> list:
     """추천 엔진용 이력 데이터 (메모리 캐시)"""
     return _get_cached(ltype, pages=2)
+
+
+def find_round(ltype: str, round_no: str) -> Optional[dict]:
+    """특정 회차의 당첨 번호 조회 (캐시된 이력 범위 내에서 검색)"""
+    data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
+    for row in data:
+        if str(row.get("round")) == str(round_no):
+            return row
+    return None
