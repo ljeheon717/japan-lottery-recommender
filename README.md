@@ -1,5 +1,7 @@
 # 🎰 日本ロット 番号推薦 (Japan Lottery Recommender)
 
+[한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md)
+
 일본 로또(ロト6 / ロト7 / ミニロト) 번호 추천 및 당첨 번호 조회 웹 애플리케이션입니다.
 
 **Demo → [Vercel 배포 URL]**
