@@ -16,11 +16,17 @@
 | 🎲 **랜덤** | 순수 무작위 추출 |
 | 📊 **빈도 기반** | 전체 당첨 이력에서 출현 빈도가 높은 번호에 가중치 부여 |
 | ☯️ **오행 기반** | 당일 음력 일진(천간)으로 오행(木火土金水)을 판단, 해당 번호 그룹 우선 선택 |
+| 🗂️ **내 번호 조합** | '내 구매 기록'에서 선택한 과거 구매 번호들을 풀로 삼아 조합 추천, 낙첨(당첨 번호 0개 일치) 조합의 번호는 가중치를 높여 우선 반영 |
 | 🔀 **복수 방식 조합** | 여러 방식 동시 선택 시 각 방식의 가중치를 통합하여 최적 번호 산출 |
 | 📌 **고정 번호** | 최대 3개 번호를 직접 지정하여 반드시 포함 |
 | 🔒 **과거 당첨 조합 제외** | 이미 당첨된 적 있는 조합은 자동으로 제외 후 재생성 |
 | 🍀 **행운 번호** | 40% 확률로 최근 3회차 당첨 번호 중 1개를 자동 포함 |
 | 💬 **추천 이유 출력** | 각 세트마다 번호 선택 근거를 상세히 표시 |
+
+### 내 구매 기록
+- 회차와 구매한 번호를 입력해 기록 저장 (서버 SQLite DB)
+- 회차 번호로 당첨 결과를 자동 조회해 일치 개수를 비교, 낙첨/당첨 배지로 표시
+- 등록한 기록을 선택해 '내 번호 조합' 추천 모드의 번호 풀로 활용
 
 ### 당첨 번호 조회
 - ロト6 / ロト7 / ミニロト 최근 당첨 번호 실시간 조회
@@ -45,19 +51,25 @@
 ```
 브라우저
   │
-  ├── GET /               → index.html 렌더링
-  ├── POST /api/generate  → 번호 추천 (recommender.py)
-  └── GET /api/results    → 당첨 번호 조회 (data.py → lottolyzer.com 스크래핑)
+  ├── GET /                              → index.html 렌더링
+  ├── POST /api/generate                 → 번호 추천 (recommender.py)
+  ├── GET /api/results                   → 당첨 번호 조회 (data.py → lottolyzer.com 스크래핑)
+  └── GET·POST·DELETE /api/purchases     → 내 구매 기록 관리 (storage.py → SQLite)
 
 recommender.py
   ├── random  모드: random.sample()
   ├── frequency 모드: 출현 빈도 기반 가중치 샘플링
   ├── saju 모드: 일진 → 오행 그룹 우선 선택
+  ├── mypick 모드: 선택한 구매 기록의 번호 풀 + 낙첨 조합 가중치 가산
   └── 복수 모드: 각 가중치 곱산(product) → 통합 샘플링
 
 data.py
   ├── get_results()  : 페이지 단위 실시간 스크래핑
-  └── get_history()  : 추천 엔진용 이력 (메모리 캐시)
+  ├── get_history()  : 추천 엔진용 이력 (메모리 캐시)
+  └── find_round()   : 특정 회차 당첨 번호 조회 (구매 기록 당첨 비교용)
+
+storage.py
+  └── SQLite 기반 구매 기록 CRUD (add_purchase / list_purchases / delete_purchase 등)
 ```
 
 ---
@@ -76,6 +88,7 @@ lotto/
 ├── app.py                # Flask 앱 & 라우팅
 ├── data.py               # 스크래핑 & 데이터 관리
 ├── recommender.py        # 번호 추천 엔진
+├── storage.py            # 구매 기록 SQLite 저장소
 ├── vercel.json           # Vercel 배포 설정
 ├── requirements.txt
 └── README.md
@@ -92,8 +105,9 @@ lotto/
 |----------|------|------|
 | `ltype` | path | `loto6` / `loto7` / `miniloto` |
 | `count` | path | 생성 세트 수 (1~10) |
-| `modes` | body | 추천 방식 배열 `["random","frequency","saju"]` |
+| `modes` | body | 추천 방식 배열 `["random","frequency","saju","mypick"]` |
 | `fixed` | body | 고정 번호 배열 (최대 3개) |
+| `purchase_ids` | body | `mypick` 모드 사용 시, 조합에 사용할 구매 기록 ID 배열 |
 
 **응답 예시**
 ```json
@@ -120,6 +134,16 @@ lotto/
 |----------|------|
 | `page` | 페이지 번호 (기본값 1) |
 | `per_page` | 페이지당 결과 수 (기본값 50, 최대 100) |
+
+### `GET /api/purchases?ltype=<ltype>`
+내 구매 기록 목록 조회 (당첨 회차와 비교한 일치 개수 포함)
+
+### `POST /api/purchases`
+구매 기록 추가 — `{ "ltype", "round", "numbers" }`
+회차 번호로 당첨 결과를 자동 조회해 일치 개수(`match_count`)를 계산해 저장
+
+### `DELETE /api/purchases/<ltype>/<id>`
+구매 기록 삭제
 
 ---
 
@@ -167,7 +191,8 @@ vercel --prod
 ```
 
 > **주의:** Vercel 무료 플랜 함수 타임아웃은 10초입니다.  
-> 당첨 번호 조회는 lottolyzer.com에서 실시간 스크래핑하므로 첫 로드 시 1~3초 소요됩니다.
+> 당첨 번호 조회는 lottolyzer.com에서 실시간 스크래핑하므로 첫 로드 시 1~3초 소요됩니다.  
+> '내 구매 기록'은 SQLite(`purchases.db`)에 저장되며, 로컬 실행 시에는 영구 보존됩니다. 단 Vercel 서버리스 환경은 파일시스템이 임시(`/tmp`)이므로 인스턴스가 재시작되면 기록이 초기화됩니다 — 배포 환경에서 영구 보존하려면 Vercel Postgres 등 외부 DB 연동이 필요합니다.
 
 ---
 
