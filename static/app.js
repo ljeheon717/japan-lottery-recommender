@@ -155,8 +155,6 @@ function renderSets(sets) {
       </div>
       <div class="numbers">
         ${s.numbers.map(n => ball(n, 'main')).join('')}
-        <span class="divider">|</span>
-        ${s.bonus.map(n => ball(n, 'bonus')).join('')}
       </div>
       ${s.reason && s.reason.length ? `
         <div class="reason">
