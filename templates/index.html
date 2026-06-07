@@ -1,109 +1,130 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🎰 日本ロット 番号推薦</title>
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1>🎰 日本ロット 番号推薦</h1>
-      <p class="subtitle">일본 로또 번호 추천 &amp; 당첨 번호 조회</p>
-    </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎰 日本ロット 番号推薦</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🎰 日本ロット 番号推薦</h1>
+        <p class="subtitle">일본 로또 번호 추천 &amp; 당첨 번호 조회</p>
+      </header>
 
-    <div class="tabs">
-      <button class="tab active" data-tab="generate">번호 추천</button>
-      <button class="tab" data-tab="results">당첨 번호</button>
-    </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="generate">번호 추천</button>
+        <button class="tab" data-tab="results">당첨 번호</button>
+      </div>
 
-    <!-- 번호 추천 탭 -->
-    <div id="generate" class="tab-content active">
-      <div class="card">
-        <div class="controls">
+      <!-- 번호 추천 탭 -->
+      <div id="generate" class="tab-content active">
+        <div class="card">
+          <div class="controls">
+            <!-- 로또 종류 -->
+            <div class="control-group">
+              <label>로또 종류</label>
+              <div class="btn-group">
+                <button class="type-btn active" data-type="loto6">ロト6</button>
+                <button class="type-btn" data-type="loto7">ロト7</button>
+                <button class="type-btn" data-type="miniloto">ミニロト</button>
+              </div>
+            </div>
 
-          <!-- 로또 종류 -->
-          <div class="control-group">
-            <label>로또 종류</label>
-            <div class="btn-group">
-              <button class="type-btn active" data-type="loto6">ロト6</button>
-              <button class="type-btn" data-type="loto7">ロト7</button>
-              <button class="type-btn" data-type="miniloto">ミニロト</button>
+            <!-- 추천 방식 -->
+            <div class="control-group">
+              <label>추천 방식</label>
+              <div class="btn-group">
+                <button class="mode-btn active" data-mode="random">
+                  🎲 랜덤
+                </button>
+                <button class="mode-btn" data-mode="frequency">
+                  📊 빈도 기반
+                </button>
+                <button class="mode-btn" data-mode="saju">☯️ 오행 기반</button>
+              </div>
+            </div>
+
+            <!-- 세트 수 -->
+            <div class="control-group">
+              <label>세트 수</label>
+              <div class="btn-group">
+                <button class="count-btn active" data-count="1">1세트</button>
+                <button class="count-btn" data-count="3">3세트</button>
+                <button class="count-btn" data-count="5">5세트</button>
+                <button class="count-btn" data-count="10">10세트</button>
+              </div>
+            </div>
+
+            <!-- 고정 번호 -->
+            <div class="control-group">
+              <label
+                >고정 번호
+                <span class="label-hint">(최대 3개, 선택)</span></label
+              >
+              <div class="fixed-inputs">
+                <input
+                  class="fixed-input"
+                  type="number"
+                  placeholder="번호"
+                  min="1"
+                  max="43"
+                />
+                <input
+                  class="fixed-input"
+                  type="number"
+                  placeholder="번호"
+                  min="1"
+                  max="43"
+                />
+                <input
+                  class="fixed-input"
+                  type="number"
+                  placeholder="번호"
+                  min="1"
+                  max="43"
+                />
+              </div>
+            </div>
+
+            <!-- 옵션 안내 -->
+            <div class="control-group">
+              <div class="info-badge">🔒 과거 당첨 조합 자동 제외 적용</div>
             </div>
           </div>
-
-          <!-- 추천 방식 -->
-          <div class="control-group">
-            <label>추천 방식</label>
-            <div class="btn-group">
-              <button class="mode-btn active" data-mode="random">
-                🎲 랜덤
-              </button>
-              <button class="mode-btn" data-mode="frequency">
-                📊 빈도 기반
-              </button>
-              <button class="mode-btn" data-mode="saju">
-                ☯️ 오행 기반
-              </button>
-            </div>
-          </div>
-
-          <!-- 세트 수 -->
-          <div class="control-group">
-            <label>세트 수</label>
-            <div class="btn-group">
-              <button class="count-btn active" data-count="1">1세트</button>
-              <button class="count-btn" data-count="3">3세트</button>
-              <button class="count-btn" data-count="5">5세트</button>
-              <button class="count-btn" data-count="10">10세트</button>
-            </div>
-          </div>
-
-          <!-- 고정 번호 -->
-          <div class="control-group">
-            <label>고정 번호 <span class="label-hint">(최대 3개, 선택)</span></label>
-            <div class="fixed-inputs">
-              <input class="fixed-input" type="number" placeholder="번호" min="1" max="43" />
-              <input class="fixed-input" type="number" placeholder="번호" min="1" max="43" />
-              <input class="fixed-input" type="number" placeholder="번호" min="1" max="43" />
-            </div>
-          </div>
-
-          <!-- 옵션 안내 -->
-          <div class="control-group">
-            <div class="info-badge">🔒 과거 당첨 조합 자동 제외 적용</div>
-          </div>
-
+          <button id="generate-btn" class="primary-btn">번호 생성 🎲</button>
+          <div id="generate-result"></div>
         </div>
-        <button id="generate-btn" class="primary-btn">번호 생성 🎲</button>
-        <div id="generate-result"></div>
+      </div>
+
+      <!-- 당첨 번호 탭 -->
+      <div id="results" class="tab-content">
+        <div class="card">
+          <div class="controls">
+            <div class="control-group">
+              <label>로또 종류</label>
+              <div class="btn-group">
+                <button class="rtype-btn active" data-type="loto6">
+                  ロト6
+                </button>
+                <button class="rtype-btn" data-type="loto7">ロト7</button>
+                <button class="rtype-btn" data-type="miniloto">ミニロト</button>
+              </div>
+            </div>
+          </div>
+          <div class="action-row">
+            <button id="fetch-btn" class="primary-btn">
+              당첨 번호 조회 🔍
+            </button>
+          </div>
+          <div id="source-badge"></div>
+          <div id="results-result"></div>
+          <div id="pagination"></div>
+        </div>
       </div>
     </div>
 
-    <!-- 당첨 번호 탭 -->
-    <div id="results" class="tab-content">
-      <div class="card">
-        <div class="controls">
-          <div class="control-group">
-            <label>로또 종류</label>
-            <div class="btn-group">
-              <button class="rtype-btn active" data-type="loto6">ロト6</button>
-              <button class="rtype-btn" data-type="loto7">ロト7</button>
-              <button class="rtype-btn" data-type="miniloto">ミニロト</button>
-            </div>
-          </div>
-        </div>
-        <div class="action-row">
-          <button id="fetch-btn" class="primary-btn">당첨 번호 조회 🔍</button>
-        </div>
-        <div id="source-badge"></div>
-        <div id="results-result"></div>
-        <div id="pagination"></div>
-      </div>
-    </div>
-  </div>
-
-  <script src="/static/app.js"></script>
-</body>
+    <script src="/static/app.js"></script>
+  </body>
 </html>
