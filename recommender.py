@@ -3,7 +3,7 @@
 - random   : 순수 랜덤 (단독 전용)
 - frequency: 전체 이력 빈도 가중치
 - saju     : 음력 일진(천간) 오행 기반
-- lucky    : 최근 3회차 당첨 번호 우선 선택
+- lucky    : 최근 3회차 출현 번호 중 1개를 행운 번호로 보장 포함, 나머지는 무작위
 공통: 과거 당첨 조합 항상 제외, 고정 번호
 """
 
@@ -107,11 +107,11 @@ def recommend_multi(
     return results
 
 
-def _combined_weights(candidates, modes, freq, ohang, ohang_groups, recent=None) -> list:
-    """각 방식의 가중치를 곱해 통합 점수 산출"""
+def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
+    """각 방식의 가중치를 곱해 통합 점수 산출
+    (lucky는 가중치가 아니라 1개 보장 포함 방식이므로 여기서는 다루지 않음)"""
     weights = []
     ohang_nums = set(ohang_groups.get(ohang, [])) if ohang else set()
-    recent_counter = Counter(recent) if recent else Counter()
 
     for n in candidates:
         w = 1.0
@@ -119,8 +119,6 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups, recent=None)
             w *= (freq.get(n, 0) + 0.001) * 1000
         if "saju" in modes:
             w *= 3.0 if n in ohang_nums else 1.0
-        if "lucky" in modes:
-            w *= (recent_counter.get(n, 0) * 3 + 1)
         if "random" in modes:
             w *= 1.0
         weights.append(w)
@@ -132,12 +130,19 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     pool = list(range(1, max_n + 1))
     retries = 0
 
-    # lucky 모드일 때는 모드 자체가 행운 처리 — 40% 주사위 생략
+    # lucky가 조합에 포함된 경우: 최근 3회차 출현 번호 중 1개를 100% 보장 포함
+    # (가중치 방식이 아니라 "딱 1개만" 포함하는 방식 — 다른 모드와 조합해도 동일)
+    # lucky가 없는 조합: 기존처럼 40% 확률로 1개만 간헐적으로 포함
     lucky_num = None
-    if "lucky" not in modes and recent and random.random() < RECENT_NUM_PROB:
-        candidates_lucky = [n for n in set(recent) if n not in fixed]
-        if candidates_lucky and len(fixed) < pick - 1:
-            lucky_num = random.choice(candidates_lucky)
+    if "lucky" in modes:
+        if recent:
+            cand_lucky = [n for n in set(recent) if n not in fixed]
+            if cand_lucky and len(fixed) < pick:
+                lucky_num = random.choice(cand_lucky)
+    elif recent and random.random() < RECENT_NUM_PROB:
+        cand_lucky = [n for n in set(recent) if n not in fixed]
+        if cand_lucky and len(fixed) < pick - 1:
+            lucky_num = random.choice(cand_lucky)
 
     effective_fixed = list(fixed)
     if lucky_num and lucky_num not in effective_fixed:
@@ -146,7 +151,7 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     while True:
         need = pick - len(effective_fixed)
         candidates = [n for n in pool if n not in effective_fixed]
-        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups, recent)
+        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups)
         chosen = _weighted_sample(candidates, weights, need)
         nums = sorted(effective_fixed + chosen)
         retries += 1
@@ -158,16 +163,22 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
     reason = _build_combined_reason(nums, modes, fixed, lucky_num,
-                                    ohang, freq, ohang_groups, retries - 1, max_n, today, recent)
+                                    ohang, freq, ohang_groups, retries - 1, max_n, today)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
 def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
-                            ohang_groups, retries, max_n, today, recent=None) -> list:
+                            ohang_groups, retries, max_n, today) -> list:
     reasons = []
     if fixed:
         reasons.append(f"고정 번호 {fixed} 포함")
-    if lucky_num:
+
+    if "lucky" in modes:
+        if lucky_num:
+            reasons.append(f"🍀 행운 번호 {lucky_num}번 포함 — 최근 3회차 출현 번호 중 1개만 선택")
+        else:
+            reasons.append("🍀 행운 번호 — 최근 회차 데이터가 없어 다른 방식으로 대체")
+    elif lucky_num:
         reasons.append(f"이전 회차 당첨 번호 {lucky_num} 포함 (행운 적용)")
 
     if "frequency" in modes and freq:
@@ -185,12 +196,6 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
         if ohang_nums:
             reasons.append(f"오행 해당 번호: {ohang_nums}")
 
-    if "lucky" in modes and recent:
-        recent_in_nums = [n for n in nums if n in set(recent)]
-        reasons.append("행운 번호 기여 — 최근 3회차 출현 번호 가중치 적용")
-        if recent_in_nums:
-            reasons.append(f"행운 번호 포함: {recent_in_nums}")
-
     if "random" in modes and len(modes) > 1:
         reasons.append("랜덤 가중치 포함")
     elif "random" in modes:
@@ -206,19 +211,25 @@ def _pick_one(max_n, pick, bonus_count, mode,
     pool = list(range(1, max_n + 1))
     retries = 0
 
-    # 이전 회차 번호 간헐 포함 (40% 확률, lucky 모드 제외)
+    # lucky 모드: 최근 3회차 출현 번호 중 1개를 100% 보장 포함 (그 이상은 가중치 적용 안 함)
+    # 그 외 모드: 40% 확률로 1개만 간헐적으로 포함
     lucky_num = None
-    if mode != "lucky" and recent and random.random() < RECENT_NUM_PROB:
-        candidates = [n for n in set(recent) if n not in fixed]
-        if candidates and len(fixed) < pick - 1:
-            lucky_num = random.choice(candidates)
+    if mode == "lucky":
+        if recent:
+            cand_lucky = [n for n in set(recent) if n not in fixed]
+            if cand_lucky and len(fixed) < pick:
+                lucky_num = random.choice(cand_lucky)
+    elif recent and random.random() < RECENT_NUM_PROB:
+        cand_lucky = [n for n in set(recent) if n not in fixed]
+        if cand_lucky and len(fixed) < pick - 1:
+            lucky_num = random.choice(cand_lucky)
 
     effective_fixed = list(fixed)
     if lucky_num and lucky_num not in effective_fixed:
         effective_fixed.append(lucky_num)
 
     while True:
-        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n, recent)
+        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n)
         retries += 1
         if frozenset(nums) not in past_sets:
             break
@@ -227,11 +238,11 @@ def _pick_one(max_n, pick, bonus_count, mode,
 
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
-    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries - 1, max_n, today, recent)
+    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries - 1, max_n, today)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
-def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n, recent=None) -> list:
+def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n) -> list:
     need = pick - len(fixed)
     candidates = [n for n in pool if n not in fixed]
 
@@ -247,12 +258,8 @@ def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n, recent=No
         if n_primary < need:
             chosen += random.sample(secondary, need - n_primary)
 
-    elif mode == "lucky" and recent:
-        recent_counter = Counter(recent)
-        weights = [recent_counter.get(n, 0) * 10 + 1 for n in candidates]
-        chosen = _weighted_sample(candidates, weights, need)
-
     else:
+        # random / lucky(행운 번호 1개는 이미 fixed에 보장 포함됨) — 나머지는 순수 무작위
         chosen = random.sample(candidates, need)
 
     return sorted(fixed + chosen)
@@ -272,40 +279,42 @@ def _weighted_sample(population, weights, k) -> list:
     return chosen
 
 
-def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries, max_n, today, recent=None) -> list:
+def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries, max_n, today) -> list:
     reasons = []
 
     if fixed:
         reasons.append(f"고정 번호 {fixed} 포함")
 
-    if lucky_num:
-        reasons.append(f"이전 회차 당첨 번호 {lucky_num} 포함 (행운 적용)")
-
-    if mode == "frequency" and freq:
-        top_nums = {n for n, _ in sorted(freq.items(), key=lambda x: -x[1])[:10]}
-        hot = [n for n in nums if n in top_nums]
-        if hot:
-            pcts_str = ", ".join(f"{n}번({round(freq[n]*100,1)}%)" for n in hot)
-            reasons.append(f"고빈도 번호: {pcts_str}")
-        cold = sorted(nums, key=lambda n: freq.get(n, 0))[:2]
-        reasons.append(f"저빈도 균형 번호: {cold}")
-
-    elif mode == "saju" and ohang:
-        ohang_ko = _OHANG_KO.get(ohang, ohang)
-        cg = _lunar_cheongan(today)
-        ohang_nums = [n for n in nums if n in _ohang_groups(max_n).get(ohang, [])]
-        reasons.append(f"오늘 일진: {cg}일 → 오행 {ohang_ko}")
-        if ohang_nums:
-            reasons.append(f"오행 해당 번호: {ohang_nums}")
-
-    elif mode == "lucky":
-        recent_in_nums = [n for n in nums if n in set(recent or [])]
-        reasons.append("행운 번호 — 최근 3회차 출현 번호 우선 선택")
-        if recent_in_nums:
-            reasons.append(f"행운 번호 포함: {recent_in_nums}")
+    if mode == "lucky":
+        if lucky_num:
+            reasons.append(f"🍀 행운 번호 {lucky_num}번 포함 — 최근 3회차 출현 번호 중 1개만 선택")
+            reasons.append("나머지 번호는 순수 무작위 추출")
+        else:
+            reasons.append("최근 회차 데이터가 없어 전체 무작위로 추출")
 
     else:
-        reasons.append("순수 무작위 추출")
+        if lucky_num:
+            reasons.append(f"이전 회차 당첨 번호 {lucky_num} 포함 (행운 적용)")
+
+        if mode == "frequency" and freq:
+            top_nums = {n for n, _ in sorted(freq.items(), key=lambda x: -x[1])[:10]}
+            hot = [n for n in nums if n in top_nums]
+            if hot:
+                pcts_str = ", ".join(f"{n}번({round(freq[n]*100,1)}%)" for n in hot)
+                reasons.append(f"고빈도 번호: {pcts_str}")
+            cold = sorted(nums, key=lambda n: freq.get(n, 0))[:2]
+            reasons.append(f"저빈도 균형 번호: {cold}")
+
+        elif mode == "saju" and ohang:
+            ohang_ko = _OHANG_KO.get(ohang, ohang)
+            cg = _lunar_cheongan(today)
+            ohang_nums = [n for n in nums if n in _ohang_groups(max_n).get(ohang, [])]
+            reasons.append(f"오늘 일진: {cg}일 → 오행 {ohang_ko}")
+            if ohang_nums:
+                reasons.append(f"오행 해당 번호: {ohang_nums}")
+
+        else:
+            reasons.append("순수 무작위 추출")
 
     if retries > 0:
         reasons.append(f"과거 당첨 조합 {retries}회 제외 후 선택")
