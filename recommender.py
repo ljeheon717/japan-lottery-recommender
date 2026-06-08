@@ -4,6 +4,7 @@
 - frequency: 전체 이력 빈도 가중치
 - saju     : 음력 일진(천간) 오행 기반
 - lucky    : 최근 3회차 출현 번호 중 1개를 행운 번호로 보장 포함, 나머지는 무작위
+- oddeven  : 최근 회차 당첨 번호의 홀짝 비율을 분석해 가장 빈번한 비율로 구성
 공통: 과거 당첨 조합 항상 제외, 고정 번호
 """
 
@@ -66,6 +67,47 @@ def _recent_pool(ltype: str, max_n: int, last_n: int = 3) -> list:
     return nums
 
 
+ODDEVEN_WINDOW = 30  # 홀짝 비율 분석에 사용할 최근 회차 수
+
+
+def _odd_even_ratio(ltype: str) -> Optional[tuple]:
+    """최근 ODDEVEN_WINDOW 회차를 분석해 가장 빈번한 (홀수 개수, 짝수 개수) 비율 반환"""
+    data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
+    rows = data[:ODDEVEN_WINDOW]
+    if not rows:
+        return None
+    counter = Counter()
+    for row in rows:
+        nums = row["numbers"]
+        odd = sum(1 for n in nums if n % 2 == 1)
+        counter[(odd, len(nums) - odd)] += 1
+    top = counter.most_common(1)
+    return top[0][0] if top else None
+
+
+def _pick_by_ratio(candidates, fixed, need, ratio) -> list:
+    """목표 (홀수 개수, 짝수 개수) 비율에 최대한 맞춰 candidates에서 need개 선택
+    (fixed에 이미 포함된 번호의 홀짝 구성도 비율 계산에 반영)"""
+    target_odd, target_even = ratio
+    fixed_odd = sum(1 for n in fixed if n % 2 == 1)
+
+    need_odd  = max(0, min(need, target_odd - fixed_odd))
+    need_even = need - need_odd
+
+    odd_pool  = [n for n in candidates if n % 2 == 1]
+    even_pool = [n for n in candidates if n % 2 == 0]
+    n_odd  = min(need_odd, len(odd_pool))
+    n_even = min(need_even, len(even_pool))
+
+    chosen = random.sample(odd_pool, n_odd) + random.sample(even_pool, n_even)
+
+    shortfall = need - len(chosen)
+    if shortfall > 0:
+        remaining = [n for n in candidates if n not in chosen]
+        chosen += random.sample(remaining, shortfall)
+    return chosen
+
+
 # ── 공개 API ──────────────────────────────────────
 def recommend_multi(
     ltype: str,
@@ -91,27 +133,35 @@ def recommend_multi(
     ohang = _get_ohang(today)
     ohang_groups = _ohang_groups(max_n)
     recent = _recent_pool(ltype, max_n)
+    ratio = _odd_even_ratio(ltype)
 
     results = []
     for _ in range(count):
         if len(modes) == 1:
             mode = modes[0]
             r = _pick_one(max_n, pick, bonus_count, mode,
-                          fixed, past_sets, freq, ohang, ohang_groups, recent, today)
+                          fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today)
             r["mode"] = mode
         else:
             r = _pick_combined(max_n, pick, bonus_count, modes,
-                               fixed, past_sets, freq, ohang, ohang_groups, recent, today)
+                               fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today)
             r["mode"] = "+".join(modes)
         results.append(r)
     return results
 
 
-def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
+def _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio=None) -> list:
     """각 방식의 가중치를 곱해 통합 점수 산출
     (lucky는 가중치가 아니라 1개 보장 포함 방식이므로 여기서는 다루지 않음)"""
     weights = []
     ohang_nums = set(ohang_groups.get(ohang, [])) if ohang else set()
+
+    odd_w = even_w = 1.0
+    if "oddeven" in modes and ratio:
+        target_odd, target_even = ratio
+        total = (target_odd + target_even) or 1
+        odd_w  = target_odd  / total + 0.15
+        even_w = target_even / total + 0.15
 
     for n in candidates:
         w = 1.0
@@ -119,6 +169,8 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
             w *= (freq.get(n, 0) + 0.001) * 1000
         if "saju" in modes:
             w *= 3.0 if n in ohang_nums else 1.0
+        if "oddeven" in modes and ratio:
+            w *= odd_w if n % 2 == 1 else even_w
         if "random" in modes:
             w *= 1.0
         weights.append(w)
@@ -126,7 +178,7 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups) -> list:
 
 
 def _pick_combined(max_n, pick, bonus_count, modes,
-                   fixed, past_sets, freq, ohang, ohang_groups, recent, today) -> dict:
+                   fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today) -> dict:
     pool = list(range(1, max_n + 1))
     retries = 0
 
@@ -151,7 +203,7 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     while True:
         need = pick - len(effective_fixed)
         candidates = [n for n in pool if n not in effective_fixed]
-        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups)
+        weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio)
         chosen = _weighted_sample(candidates, weights, need)
         nums = sorted(effective_fixed + chosen)
         retries += 1
@@ -163,12 +215,12 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
     reason = _build_combined_reason(nums, modes, fixed, lucky_num,
-                                    ohang, freq, ohang_groups, retries - 1, max_n, today)
+                                    ohang, freq, ohang_groups, ratio, retries - 1, max_n, today)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
 def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
-                            ohang_groups, retries, max_n, today) -> list:
+                            ohang_groups, ratio, retries, max_n, today) -> list:
     reasons = []
     if fixed:
         reasons.append(f"고정 번호 {fixed} 포함")
@@ -196,6 +248,11 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
         if ohang_nums:
             reasons.append(f"오행 해당 번호: {ohang_nums}")
 
+    if "oddeven" in modes and ratio:
+        odd_n  = sum(1 for n in nums if n % 2 == 1)
+        even_n = len(nums) - odd_n
+        reasons.append(f"⚖️ 홀짝 비율 기여 — 최근 {ODDEVEN_WINDOW}회차 분석 결과 홀 {ratio[0]} : 짝 {ratio[1]} 비율이 가장 빈번 (이번 조합 — 홀 {odd_n} : 짝 {even_n})")
+
     if "random" in modes and len(modes) > 1:
         reasons.append("랜덤 가중치 포함")
     elif "random" in modes:
@@ -207,7 +264,7 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
 
 
 def _pick_one(max_n, pick, bonus_count, mode,
-              fixed, past_sets, freq, ohang, ohang_groups, recent, today) -> dict:
+              fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today) -> dict:
     pool = list(range(1, max_n + 1))
     retries = 0
 
@@ -229,7 +286,7 @@ def _pick_one(max_n, pick, bonus_count, mode,
         effective_fixed.append(lucky_num)
 
     while True:
-        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n)
+        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n, ratio)
         retries += 1
         if frozenset(nums) not in past_sets:
             break
@@ -238,11 +295,11 @@ def _pick_one(max_n, pick, bonus_count, mode,
 
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
-    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries - 1, max_n, today)
+    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries - 1, max_n, today)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
-def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n) -> list:
+def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n, ratio=None) -> list:
     need = pick - len(fixed)
     candidates = [n for n in pool if n not in fixed]
 
@@ -257,6 +314,9 @@ def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n) -> list:
         chosen = random.sample(primary, n_primary)
         if n_primary < need:
             chosen += random.sample(secondary, need - n_primary)
+
+    elif mode == "oddeven" and ratio:
+        chosen = _pick_by_ratio(candidates, fixed, need, ratio)
 
     else:
         # random / lucky(행운 번호 1개는 이미 fixed에 보장 포함됨) — 나머지는 순수 무작위
@@ -279,7 +339,7 @@ def _weighted_sample(population, weights, k) -> list:
     return chosen
 
 
-def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries, max_n, today) -> list:
+def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries, max_n, today) -> list:
     reasons = []
 
     if fixed:
@@ -312,6 +372,15 @@ def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, retries, max_n, tod
             reasons.append(f"오늘 일진: {cg}일 → 오행 {ohang_ko}")
             if ohang_nums:
                 reasons.append(f"오행 해당 번호: {ohang_nums}")
+
+        elif mode == "oddeven":
+            if ratio:
+                odd_n  = sum(1 for n in nums if n % 2 == 1)
+                even_n = len(nums) - odd_n
+                reasons.append(f"⚖️ 최근 {ODDEVEN_WINDOW}회차 분석 — 홀수 {ratio[0]}개 : 짝수 {ratio[1]}개 비율이 가장 빈번")
+                reasons.append(f"이 비율 기준으로 구성 (이번 조합 — 홀 {odd_n}개 : 짝 {even_n}개)")
+            else:
+                reasons.append("최근 회차 데이터가 없어 무작위로 추출")
 
         else:
             reasons.append("순수 무작위 추출")
