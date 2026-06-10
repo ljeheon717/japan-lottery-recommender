@@ -18,7 +18,8 @@ from data import get_history, FALLBACK_DATA
 _CHEONGAN = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 _OHANG_KO = {"木": "목(木)", "火": "화(火)", "土": "토(土)", "金": "금(金)", "水": "수(水)"}
 
-RECENT_NUM_PROB = 0.4  # 최근 회차 번호 1개 포함 확률 (lucky 이외 모드에서만 적용)
+RECENT_NUM_PROB    = 0.4   # 최근 회차 번호 1개 포함 확률 (단독 모드, lucky 이외)
+LUCKY_COMBINED_PROB = 0.35  # 복수 모드 조합 시 행운 번호 포함 확률 (안 나와도 됨)
 
 
 def _ohang_groups(max_n: int) -> dict:
@@ -151,29 +152,38 @@ def recommend_multi(
 
 
 def _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio=None) -> list:
-    """각 방식의 가중치를 곱해 통합 점수 산출
-    (lucky는 가중치가 아니라 1개 보장 포함 방식이므로 여기서는 다루지 않음)"""
-    weights = []
+    """각 방식의 가중치를 합산해 통합 점수 산출.
+    각 모드 기여분을 정규화 후 더하는 방식 — 특정 모드가 압도하지 않도록 밸런스 조정.
+    (lucky는 가중치가 아니라 확률적 포함 방식이므로 여기서는 다루지 않음)"""
+    import math
+
+    avg_freq = (sum(freq.values()) / len(freq)) if freq else 0.02
     ohang_nums = set(ohang_groups.get(ohang, [])) if ohang else set()
 
-    odd_w = even_w = 1.0
+    odd_bias = even_bias = 0.0
     if "oddeven" in modes and ratio:
         target_odd, target_even = ratio
         total = (target_odd + target_even) or 1
-        odd_w  = target_odd  / total + 0.15
-        even_w = target_even / total + 0.15
+        odd_bias  = (target_odd  / total - 0.5) * 0.6   # ±0.3 범위
+        even_bias = (target_even / total - 0.5) * 0.6
 
+    active = [m for m in modes if m not in ("random", "lucky")]
+    n_active = max(len(active), 1)
+
+    weights = []
     for n in candidates:
-        w = 1.0
-        if "frequency" in modes:
-            w *= (freq.get(n, 0) + 0.001) * 1000
+        score = 0.0
+        if "frequency" in modes and freq:
+            # 평균 빈도 대비 상대 비율 → −0.5 ~ +0.5 범위 정규화
+            f = freq.get(n, avg_freq)
+            score += max(-0.5, min(0.5, (f / avg_freq) - 1.0))
         if "saju" in modes:
-            w *= 3.0 if n in ohang_nums else 1.0
+            score += 0.5 if n in ohang_nums else -0.1
         if "oddeven" in modes and ratio:
-            w *= odd_w if n % 2 == 1 else even_w
-        if "random" in modes:
-            w *= 1.0
-        weights.append(w)
+            score += odd_bias if n % 2 == 1 else even_bias
+        # 각 모드 수만큼 나눠 영향 평준화, 최솟값 0.2 보장
+        w = max(0.2, 1.0 + score / n_active)
+        weights.append(math.sqrt(w))   # sqrt 압축으로 극단값 완화
     return weights
 
 
@@ -182,12 +192,11 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     pool = list(range(1, max_n + 1))
     retries = 0
 
-    # lucky가 조합에 포함된 경우: 최근 3회차 출현 번호 중 1개를 100% 보장 포함
-    # (가중치 방식이 아니라 "딱 1개만" 포함하는 방식 — 다른 모드와 조합해도 동일)
-    # lucky가 없는 조합: 기존처럼 40% 확률로 1개만 간헐적으로 포함
+    # lucky가 조합에 포함된 경우: LUCKY_COMBINED_PROB 확률로만 포함 (안 나와도 됨)
+    # lucky가 없는 조합: 기존처럼 RECENT_NUM_PROB 확률로 1개만 간헐적으로 포함
     lucky_num = None
     if "lucky" in modes:
-        if recent:
+        if recent and random.random() < LUCKY_COMBINED_PROB:
             cand_lucky = [n for n in set(recent) if n not in fixed]
             if cand_lucky and len(fixed) < pick:
                 lucky_num = random.choice(cand_lucky)
@@ -227,9 +236,9 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
 
     if "lucky" in modes:
         if lucky_num:
-            reasons.append(f"🍀 행운 번호 {lucky_num}번 포함 — 최근 3회차 출현 번호 중 1개만 선택")
+            reasons.append(f"🍀 행운 번호 {lucky_num}번 포함 — 최근 3회차 출현 번호 중 1개 (약 35% 확률)")
         else:
-            reasons.append("🍀 행운 번호 — 최근 회차 데이터가 없어 다른 방식으로 대체")
+            reasons.append("🍀 행운 번호 — 이번 조합엔 미포함 (다른 방식으로 균형 구성)")
     elif lucky_num:
         reasons.append(f"이전 회차 당첨 번호 {lucky_num} 포함 (행운 적용)")
 
