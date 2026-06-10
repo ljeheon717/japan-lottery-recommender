@@ -16,7 +16,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="generate">번호 추천</button>
       <button class="tab" data-tab="results">당첨 번호</button>
-      <button class="tab" data-tab="mynumbers">내 번호</button>
+      <button class="tab" data-tab="history">이력</button>
     </div>
 
     <!-- 번호 추천 탭 -->
@@ -96,26 +96,31 @@
       </div>
     </div>
 
-    <!-- 내 번호 탭 -->
-    <div id="mynumbers" class="tab-content">
+    <!-- 이력 탭 -->
+    <div id="history" class="tab-content">
       <div class="card">
         <div class="controls">
           <div class="control-group">
             <label>로또 종류</label>
             <div class="btn-group">
-              <button class="mtype-btn active" data-type="loto6">ロト6</button>
-              <button class="mtype-btn" data-type="loto7">ロト7</button>
-              <button class="mtype-btn" data-type="miniloto">ミニロト</button>
+              <button class="htype-btn active" data-type="loto6">ロト6</button>
+              <button class="htype-btn" data-type="loto7">ロト7</button>
+              <button class="htype-btn" data-type="miniloto">ミニロト</button>
             </div>
           </div>
           <div class="control-group">
-            <label>번호 입력 <span class="label-hint" id="my-num-hint"></span></label>
-            <div class="fixed-inputs" id="my-num-inputs-container"></div>
+            <label>회차 번호</label>
+            <input type="number" id="hist-round-input" class="fixed-input"
+                   placeholder="예: 2108" min="1" style="width:130px">
+          </div>
+          <div class="control-group">
+            <label>내 번호 <span class="label-hint" id="hist-num-hint"></span></label>
+            <div class="fixed-inputs" id="hist-num-inputs-container"></div>
           </div>
         </div>
-        <button id="save-my-btn" class="primary-btn">저장 💾</button>
-        <div id="my-save-msg"></div>
-        <div id="my-numbers-list"></div>
+        <button id="save-hist-btn" class="primary-btn">기록 저장 📝</button>
+        <div id="hist-save-msg"></div>
+        <div id="history-list"></div>
       </div>
     </div>
   </div>

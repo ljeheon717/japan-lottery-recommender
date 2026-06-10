@@ -2,14 +2,14 @@
 const NUM_MAX   = { loto6: 43, loto7: 37, miniloto: 31 };
 const PICK_CNT  = { loto6: 6,  loto7: 7,  miniloto: 5  };
 const FIXED_MAX = { loto6: 5,  loto7: 6,  miniloto: 4  };
-const MY_KEY    = 'myLottoNumbers';
+const HIST_KEY  = 'lotteryHistory';
 
 // ── 상태 ──────────────────────────────────────────
 let genType    = 'loto6';
 let genCount   = 1;
 let genModes   = new Set(['random']);
 let resType    = 'loto6';
-let myNumType  = 'loto6';
+let histType   = 'loto6';
 let currentPage  = 1;
 let totalPages   = null;
 
@@ -20,6 +20,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'history') renderHistory();
   });
 });
 
@@ -47,19 +48,17 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
     if (mode === 'random') {
-      // 랜덤: 단독 전용 — 다른 모드 모두 해제
       genModes.clear();
       genModes.add('random');
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     } else {
-      // 비랜덤: 랜덤이 켜져 있으면 먼저 해제
       if (genModes.has('random')) {
         genModes.delete('random');
         document.querySelector('.mode-btn[data-mode="random"]').classList.remove('active');
       }
       if (genModes.has(mode)) {
-        if (genModes.size > 1) {   // 마지막 하나는 해제 불가
+        if (genModes.size > 1) {
           genModes.delete(mode);
           btn.classList.remove('active');
         }
@@ -85,14 +84,14 @@ document.querySelectorAll('.rtype-btn').forEach(btn => {
   });
 });
 
-// ── 내 번호 종류 ──────────────────────────────────
-document.querySelectorAll('.mtype-btn').forEach(btn => {
+// ── 이력 로또 종류 ────────────────────────────────
+document.querySelectorAll('.htype-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mtype-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.htype-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    myNumType = btn.dataset.type;
-    updateMyNumInputs();
-    renderMyNumbers();
+    histType = btn.dataset.type;
+    updateHistInputs();
+    renderHistory();
   });
 });
 
@@ -116,12 +115,12 @@ function updateFixedInputs() {
 }
 updateFixedInputs();
 
-// ── 내 번호 입력 (동적) ───────────────────────────
-function updateMyNumInputs() {
-  const pick      = PICK_CNT[myNumType];
-  const numMax    = NUM_MAX[myNumType];
-  const container = document.getElementById('my-num-inputs-container');
-  const hint      = document.getElementById('my-num-hint');
+// ── 이력 번호 입력 (동적) ─────────────────────────
+function updateHistInputs() {
+  const pick      = PICK_CNT[histType];
+  const numMax    = NUM_MAX[histType];
+  const container = document.getElementById('hist-num-inputs-container');
+  const hint      = document.getElementById('hist-num-hint');
   hint.textContent = `(${pick}개 입력)`;
   container.innerHTML = '';
   for (let i = 0; i < pick; i++) {
@@ -134,7 +133,7 @@ function updateMyNumInputs() {
     container.appendChild(inp);
   }
 }
-updateMyNumInputs();
+updateHistInputs();
 
 // ── 헬퍼 ─────────────────────────────────────────
 function ball(n, cls) {
@@ -289,86 +288,199 @@ async function fetchResults(page = 1) {
 
 document.getElementById('fetch-btn').addEventListener('click', () => fetchResults(currentPage));
 
-// ── 내 번호 기록 ──────────────────────────────────
-function loadMyData() {
-  try { return JSON.parse(localStorage.getItem(MY_KEY) || '{}'); }
+// ── 이력 기록 ─────────────────────────────────────
+const winCache = {};  // { ltype: { "round": { numbers, bonus } } }
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '{}'); }
   catch { return {}; }
 }
 
-function saveMyData(data) {
-  localStorage.setItem(MY_KEY, JSON.stringify(data));
+function saveHistory(data) {
+  localStorage.setItem(HIST_KEY, JSON.stringify(data));
 }
 
-function renderMyNumbers() {
-  const data = loadMyData();
-  const list = data[myNumType] || [];
-  const el   = document.getElementById('my-numbers-list');
+async function fetchWinData(ltype) {
+  if (winCache[ltype]) return winCache[ltype];
+  const map = {};
+  for (let page = 1; page <= 2; page++) {
+    try {
+      const res  = await fetch(`/api/results/${ltype}?page=${page}&per_page=50`);
+      const data = await res.json();
+      if (!data.results?.length) break;
+      data.results.forEach(r => {
+        map[String(r.round)] = { numbers: r.numbers, bonus: r.bonus || [] };
+      });
+      if (data.results.length < 50) break;
+    } catch { break; }
+  }
+  winCache[ltype] = map;
+  return map;
+}
+
+// 일본 로또 등수 판정
+function prizeLabel(ltype, matchCount, bonusMatchCount) {
+  if (ltype === 'loto6') {
+    if (matchCount === 6)                         return '🏆 1등';
+    if (matchCount === 5 && bonusMatchCount >= 1) return '🥈 2등';
+    if (matchCount === 5)                         return '🥉 3등';
+    if (matchCount === 4)                         return '4등';
+    if (matchCount === 3)                         return '5등';
+  } else if (ltype === 'loto7') {
+    if (matchCount === 7)                         return '🏆 1등';
+    if (matchCount === 6 && bonusMatchCount >= 2) return '🥈 2등';
+    if (matchCount === 6 && bonusMatchCount >= 1) return '🥉 3등';
+    if (matchCount === 6)                         return '4등';
+    if (matchCount === 5 && bonusMatchCount >= 1) return '5등';
+    if (matchCount === 5)                         return '6등';
+    if (matchCount === 4)                         return '7등';
+  } else if (ltype === 'miniloto') {
+    if (matchCount === 5)                         return '🏆 1등';
+    if (matchCount === 4 && bonusMatchCount >= 1) return '🥈 2등';
+    if (matchCount === 4)                         return '🥉 3등';
+    if (matchCount === 3)                         return '4등';
+    if (matchCount === 2)                         return '5등';
+  }
+  return null;
+}
+
+async function renderHistory() {
+  const data    = loadHistory();
+  const entries = (data[histType] || []).slice().reverse();
+  const el      = document.getElementById('history-list');
   const typeLabel = { loto6: 'ロト6', loto7: 'ロト7', miniloto: 'ミニロト' };
 
-  if (!list.length) {
-    el.innerHTML = '<div class="empty-state">저장된 번호가 없습니다.</div>';
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty-state">저장된 이력이 없습니다.<br><span style="font-size:0.82rem;color:#4a5568">회차 번호와 구매한 번호를 입력하면 당첨 여부를 확인할 수 있습니다.</span></div>';
     return;
   }
 
-  el.innerHTML = list.slice().reverse().map((entry, dispIdx) => {
-    const actualIdx = list.length - 1 - dispIdx;
+  el.innerHTML = `<div class="loading"><span class="spinner"></span> 당첨 번호 확인 중...</div>`;
+  const winData = await fetchWinData(histType);
+
+  el.innerHTML = entries.map((entry, dispIdx) => {
+    const actualIdx = (data[histType].length - 1) - dispIdx;
+    const winRound  = winData[String(entry.round)];
+
+    if (!winRound) {
+      return `
+        <div class="history-row">
+          <div class="history-header">
+            <div class="history-meta">
+              <span class="round-badge">제 ${entry.round} 회</span>
+              <span class="ltype-tag">${typeLabel[histType]}</span>
+              <span class="result-date">${entry.saved}</span>
+              <span class="match-badge match-unknown">미확인</span>
+            </div>
+            <button class="delete-btn" data-idx="${actualIdx}">✕</button>
+          </div>
+          <div class="hist-num-row">
+            <span class="row-label">내 번호</span>
+            <div class="numbers">${entry.numbers.map(n => ball(n, 'main')).join('')}</div>
+          </div>
+          <div class="hist-num-row">
+            <span class="row-label">당첨</span>
+            <span class="win-pending">최근 100회차 이내 데이터가 없습니다</span>
+          </div>
+        </div>`;
+    }
+
+    const winSet   = new Set(winRound.numbers);
+    const bonusSet = new Set(winRound.bonus);
+    const matchCount      = entry.numbers.filter(n => winSet.has(n)).length;
+    const bonusMatchCount = entry.numbers.filter(n => bonusSet.has(n)).length;
+    const prize = prizeLabel(histType, matchCount, bonusMatchCount);
+
+    const badgeCls  = matchCount >= 5 ? 'match-high' : matchCount >= 3 ? 'match-mid' : 'match-low';
+    const badgeHtml = prize
+      ? `<span class="prize-badge">${prize}</span><span class="match-badge ${badgeCls}">${matchCount}개 일치</span>`
+      : `<span class="match-badge ${badgeCls}">${matchCount}개 일치</span>`;
+
     return `
-      <div class="my-number-row">
-        <div class="my-number-header">
-          <span class="my-number-meta">
-            <span class="round-badge">${typeLabel[myNumType]}</span>
-            <span class="result-date">${entry.date}</span>
-          </span>
+      <div class="history-row">
+        <div class="history-header">
+          <div class="history-meta">
+            <span class="round-badge">제 ${entry.round} 회</span>
+            <span class="ltype-tag">${typeLabel[histType]}</span>
+            <span class="result-date">${entry.saved}</span>
+            ${badgeHtml}
+          </div>
           <button class="delete-btn" data-idx="${actualIdx}">✕</button>
         </div>
-        <div class="numbers">
-          ${entry.numbers.map(n => ball(n, 'main')).join('')}
+        <div class="hist-num-row">
+          <span class="row-label">내 번호</span>
+          <div class="numbers">
+            ${entry.numbers.map(n => ball(n, winSet.has(n) ? 'main matched' : 'main')).join('')}
+          </div>
         </div>
-      </div>
-    `;
+        <div class="hist-num-row">
+          <span class="row-label">당첨 번호</span>
+          <div class="numbers">
+            ${winRound.numbers.map(n => ball(n, entry.numbers.includes(n) ? 'winning matched' : 'winning')).join('')}
+            ${winRound.bonus?.length
+              ? `<span class="divider">|</span>${winRound.bonus.map(n => ball(n, 'bonus')).join('')}`
+              : ''}
+          </div>
+        </div>
+      </div>`;
   }).join('');
 
-  document.querySelectorAll('.delete-btn').forEach(btn => {
+  el.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx  = parseInt(btn.dataset.idx);
-      const data = loadMyData();
-      data[myNumType].splice(idx, 1);
-      saveMyData(data);
-      renderMyNumbers();
+      const idx = parseInt(btn.dataset.idx);
+      const d   = loadHistory();
+      d[histType].splice(idx, 1);
+      saveHistory(d);
+      renderHistory();
     });
   });
 }
-renderMyNumbers();
 
-document.getElementById('save-my-btn').addEventListener('click', () => {
-  const inputs  = document.querySelectorAll('#my-num-inputs-container .fixed-input');
+document.getElementById('save-hist-btn').addEventListener('click', async () => {
+  const roundInput = document.getElementById('hist-round-input');
+  const round      = parseInt(roundInput.value);
+  const numMax     = NUM_MAX[histType];
+  const msg        = document.getElementById('hist-save-msg');
+
+  if (isNaN(round) || round < 1) {
+    msg.innerHTML = '<div class="error" style="margin-top:10px">회차 번호를 입력해주세요.</div>';
+    setTimeout(() => { msg.innerHTML = ''; }, 2500);
+    return;
+  }
+
+  const inputs  = document.querySelectorAll('#hist-num-inputs-container .fixed-input');
   const numbers = [];
-  const numMax  = NUM_MAX[myNumType];
-  const msg     = document.getElementById('my-save-msg');
-
   inputs.forEach(inp => {
     const v = parseInt(inp.value);
     if (!isNaN(v) && v >= 1 && v <= numMax) numbers.push(v);
   });
-
   const unique = [...new Set(numbers)].sort((a, b) => a - b);
 
   if (unique.length < 1) {
     msg.innerHTML = '<div class="error" style="margin-top:10px">번호를 1개 이상 입력해주세요.</div>';
-    setTimeout(() => { msg.innerHTML = ''; }, 2000);
+    setTimeout(() => { msg.innerHTML = ''; }, 2500);
     return;
   }
 
-  const data  = loadMyData();
-  if (!data[myNumType]) data[myNumType] = [];
+  const data = loadHistory();
+  if (!data[histType]) data[histType] = [];
+
+  if (data[histType].find(e => e.round === round)) {
+    msg.innerHTML = '<div class="error" style="margin-top:10px">이미 저장된 회차입니다.</div>';
+    setTimeout(() => { msg.innerHTML = ''; }, 2500);
+    return;
+  }
 
   const today = new Date().toISOString().slice(0, 10);
-  data[myNumType].push({ date: today, numbers: unique });
-  saveMyData(data);
+  data[histType].push({ round, numbers: unique, saved: today });
+  saveHistory(data);
 
+  delete winCache[histType];  // 저장 후 캐시 초기화 → 다음 렌더 시 재조회
+
+  roundInput.value = '';
   inputs.forEach(inp => { inp.value = ''; });
   msg.innerHTML = '<div class="save-success">✅ 저장되었습니다.</div>';
-  setTimeout(() => { msg.innerHTML = ''; }, 2000);
+  setTimeout(() => { msg.innerHTML = ''; }, 2500);
 
-  renderMyNumbers();
+  renderHistory();
 });
