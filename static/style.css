@@ -319,6 +319,36 @@ header .subtitle {
   margin-top: 20px;
 }
 
+/* 응모 회차 / 발표일 배너 */
+.draw-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(252, 129, 129, 0.08));
+  border: 1px solid rgba(255, 215, 0, 0.25);
+}
+.draw-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 130px;
+}
+.draw-info-label {
+  font-size: 0.72rem;
+  color: #a0aec0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.draw-info-value {
+  font-size: 1.05rem;
+  color: #ffd700;
+  font-weight: 700;
+}
+
 .result-set {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);

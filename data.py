@@ -8,6 +8,8 @@
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+from datetime import date, datetime, timedelta
+
 import requests as _req
 from bs4 import BeautifulSoup
 
@@ -139,3 +141,67 @@ def get_results(ltype: str, page: int = 1, per_page: int = 50) -> dict:
 def get_history(ltype: str) -> list:
     """추천 엔진용 이력 데이터 (메모리 캐시)"""
     return _get_cached(ltype, pages=2)
+
+
+# ── 추첨 일정 ──────────────────────────────────────
+# weekday(): 월=0, 화=1, 수=2, 목=3, 금=4, 토=5, 일=6
+DRAW_WEEKDAYS = {
+    "loto6":    (0, 3),   # 月曜・木曜
+    "loto7":    (4,),     # 金曜
+    "miniloto": (1,),     # 火曜
+}
+_KO_WEEKDAY = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def _parse_date(s: str):
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%d-%b-%Y", "%d %b %Y"):
+        try:
+            return datetime.strptime(s.strip(), fmt).date()
+        except (ValueError, AttributeError):
+            continue
+    return None
+
+
+def _next_weekday(after: date, weekdays: tuple) -> date | None:
+    """`after` 다음 날부터 가장 가까운 추첨 요일을 반환"""
+    d = after + timedelta(days=1)
+    for _ in range(14):
+        if d.weekday() in weekdays:
+            return d
+        d += timedelta(days=1)
+    return None
+
+
+def get_next_draw(ltype: str) -> dict | None:
+    """이번에 응모하는(다음) 회차 번호와 추첨·발표일을 계산.
+
+    일본 로또는 추첨일 저녁에 당첨 번호가 발표되므로 추첨일 = 당첨 발표일.
+    최신 당첨 회차 +1 을 다음 응모 회차로, 최신 추첨일 이후 첫 추첨 요일을
+    다음 추첨일로 본다.
+    """
+    weekdays = DRAW_WEEKDAYS.get(ltype)
+    if not weekdays:
+        return None
+
+    rows = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
+    if not rows:
+        return None
+
+    latest = max(
+        rows,
+        key=lambda r: int(r["round"]) if str(r.get("round", "")).isdigit() else -1,
+    )
+    if not str(latest.get("round", "")).isdigit():
+        return None
+    next_round = int(latest["round"]) + 1
+
+    base = _parse_date(latest.get("date", "")) or (date.today() - timedelta(days=1))
+    draw_dt = _next_weekday(base, weekdays)
+
+    return {
+        "round": next_round,
+        "draw_date": draw_dt.isoformat() if draw_dt else None,
+        "weekday": _KO_WEEKDAY[draw_dt.weekday()] if draw_dt else None,
+        "after_round": latest["round"],
+        "after_date": latest.get("date"),
+    }
