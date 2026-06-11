@@ -1,7 +1,7 @@
 import os
 from flask import Flask, jsonify, render_template, request
 from datetime import date
-from data import get_results
+from data import get_results, get_next_draw
 from recommender import recommend_multi
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +55,7 @@ def api_generate(ltype, count):
         count=count,
         target_date=date.today(),
     )
-    return jsonify({"results": results})
+    return jsonify({"results": results, "draw": get_next_draw(ltype)})
 
 
 @app.route("/api/results/<ltype>")
