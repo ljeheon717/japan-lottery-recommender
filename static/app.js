@@ -145,6 +145,24 @@ function modeLabel(mode) {
   return mode.split('+').map(m => map[m] || m).join(' + ');
 }
 
+function renderDrawInfo(draw) {
+  if (!draw || !draw.round) return '';
+  const dateStr = draw.draw_date
+    ? `${draw.draw_date}${draw.weekday ? ` (${draw.weekday})` : ''}`
+    : '미정';
+  return `
+    <div class="draw-info">
+      <div class="draw-info-item">
+        <span class="draw-info-label">응모 회차</span>
+        <span class="draw-info-value">제 ${draw.round} 회</span>
+      </div>
+      <div class="draw-info-item">
+        <span class="draw-info-label">추첨 · 당첨 발표일</span>
+        <span class="draw-info-value">${dateStr}</span>
+      </div>
+    </div>`;
+}
+
 function renderSets(sets) {
   return sets.map((s, i) => `
     <div class="result-set">
@@ -251,7 +269,7 @@ document.getElementById('generate-btn').addEventListener('click', async () => {
       body: JSON.stringify({ modes: [...genModes], fixed }),
     });
     const data = await res.json();
-    el.innerHTML = renderSets(data.results);
+    el.innerHTML = renderDrawInfo(data.draw) + renderSets(data.results);
   } catch (e) {
     el.innerHTML = `<div class="error">생성 실패: ${e.message}</div>`;
   } finally {
