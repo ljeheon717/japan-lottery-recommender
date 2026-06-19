@@ -5,6 +5,8 @@
 - saju     : 음력 일진(천간) 오행 기반
 - lucky    : 최근 3회차 출현 번호 중 1개를 행운 번호로 보장 포함, 나머지는 무작위
 - oddeven  : 최근 회차 당첨 번호의 홀짝 비율을 분석해 가장 빈번한 비율로 구성
+- exclude1 : 무작위로 한 번 추출한 번호를 후보에서 제외한 뒤 최종 추출
+- exclude2 : 무작위 추출을 두 번 해서 나온 번호를 모두 제외한 뒤 최종 추출
 공통: 과거 당첨 조합 항상 제외, 고정 번호
 """
 
@@ -66,6 +68,23 @@ def _recent_pool(ltype: str, max_n: int, last_n: int = 3) -> list:
     for row in data[:last_n]:
         nums.extend(n for n in row["numbers"] if 1 <= n <= max_n)
     return nums
+
+
+def _build_excluded(pool, fixed, pick, rounds) -> set:
+    """rounds회만큼 pick개씩 무작위 추출해 나온 번호를 '제외 집합'으로 반환.
+    - fixed(고정/행운) 번호는 추출 및 제외 대상에서 빼 항상 보존한다.
+    - 최종 추출에 필요한 개수(need)는 항상 후보로 남기도록 제외량을 제한한다."""
+    excluded = set()
+    base = [n for n in pool if n not in fixed]
+    need = pick - len(fixed)
+    for _ in range(max(rounds, 0)):
+        avail = [n for n in base if n not in excluded]
+        room = len(avail) - need        # 최종 픽에 need개는 남겨야 함
+        if room <= 0:
+            break
+        k = min(pick, room)
+        excluded.update(random.sample(avail, k))
+    return excluded
 
 
 ODDEVEN_WINDOW = 30  # 홀짝 비율 분석에 사용할 최근 회차 수
@@ -167,7 +186,8 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio=None) 
         odd_bias  = (target_odd  / total - 0.5) * 0.6   # ±0.3 범위
         even_bias = (target_even / total - 0.5) * 0.6
 
-    active = [m for m in modes if m not in ("random", "lucky")]
+    # random/lucky/exclude* 는 가중치 점수에 기여하지 않으므로 평준화 분모에서 제외
+    active = [m for m in modes if m not in ("random", "lucky", "exclude1", "exclude2")]
     n_active = max(len(active), 1)
 
     weights = []
@@ -192,6 +212,9 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     pool = list(range(1, max_n + 1))
     retries = 0
 
+    # exclude1/exclude2 가 조합에 포함되면 무작위 추출 N회분 번호를 후보에서 제외
+    exclude_rounds = 2 if "exclude2" in modes else (1 if "exclude1" in modes else 0)
+
     # lucky가 조합에 포함된 경우: LUCKY_COMBINED_PROB 확률로만 포함 (안 나와도 됨)
     # lucky가 없는 조합: 기존처럼 RECENT_NUM_PROB 확률로 1개만 간헐적으로 포함
     lucky_num = None
@@ -209,9 +232,11 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     if lucky_num and lucky_num not in effective_fixed:
         effective_fixed.append(lucky_num)
 
+    excluded = set()
     while True:
+        excluded = _build_excluded(pool, effective_fixed, pick, exclude_rounds) if exclude_rounds else set()
         need = pick - len(effective_fixed)
-        candidates = [n for n in pool if n not in effective_fixed]
+        candidates = [n for n in pool if n not in effective_fixed and n not in excluded]
         weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio)
         chosen = _weighted_sample(candidates, weights, need)
         nums = sorted(effective_fixed + chosen)
@@ -224,15 +249,21 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
     reason = _build_combined_reason(nums, modes, fixed, lucky_num,
-                                    ohang, freq, ohang_groups, ratio, retries - 1, max_n, today)
+                                    ohang, freq, ohang_groups, ratio, retries - 1, max_n, today, excluded)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
 def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
-                            ohang_groups, ratio, retries, max_n, today) -> list:
+                            ohang_groups, ratio, retries, max_n, today, excluded=None) -> list:
     reasons = []
     if fixed:
         reasons.append(f"고정 번호 {fixed} 포함")
+
+    if "exclude1" in modes or "exclude2" in modes:
+        rounds = 2 if "exclude2" in modes else 1
+        reasons.append(f"🚫 제외 추출 기여 — 무작위 {rounds}회 추출 번호를 후보에서 제외 후 구성")
+        if excluded:
+            reasons.append(f"제외된 번호: {sorted(excluded)}")
 
     if "lucky" in modes:
         if lucky_num:
@@ -277,6 +308,9 @@ def _pick_one(max_n, pick, bonus_count, mode,
     pool = list(range(1, max_n + 1))
     retries = 0
 
+    # exclude1/exclude2 모드: 무작위 추출 N회분 번호를 후보에서 제외 후 최종(무작위) 추출
+    exclude_rounds = 2 if mode == "exclude2" else (1 if mode == "exclude1" else 0)
+
     # lucky 모드: 최근 3회차 출현 번호 중 1개를 100% 보장 포함 (그 이상은 가중치 적용 안 함)
     # 그 외 모드: 40% 확률로 1개만 간헐적으로 포함
     lucky_num = None
@@ -294,8 +328,10 @@ def _pick_one(max_n, pick, bonus_count, mode,
     if lucky_num and lucky_num not in effective_fixed:
         effective_fixed.append(lucky_num)
 
+    excluded = set()
     while True:
-        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n, ratio)
+        excluded = _build_excluded(pool, effective_fixed, pick, exclude_rounds) if exclude_rounds else set()
+        nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n, ratio, excluded)
         retries += 1
         if frozenset(nums) not in past_sets:
             break
@@ -304,20 +340,21 @@ def _pick_one(max_n, pick, bonus_count, mode,
 
     remaining = [n for n in pool if n not in nums]
     bonus = sorted(random.sample(remaining, bonus_count))
-    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries - 1, max_n, today)
+    reason = _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries - 1, max_n, today, excluded)
     return {"numbers": nums, "bonus": bonus, "reason": reason}
 
 
-def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n, ratio=None) -> list:
+def _sample(pool, pick, fixed, mode, freq, ohang, ohang_groups, max_n, ratio=None, excluded=None) -> list:
+    excluded = excluded or set()
     need = pick - len(fixed)
-    candidates = [n for n in pool if n not in fixed]
+    candidates = [n for n in pool if n not in fixed and n not in excluded]
 
     if mode == "frequency" and freq:
         weights = [freq.get(n, 0) + 0.001 for n in candidates]
         chosen = _weighted_sample(candidates, weights, need)
 
     elif mode == "saju" and ohang and ohang_groups:
-        primary = [n for n in ohang_groups.get(ohang, []) if n not in fixed]
+        primary = [n for n in ohang_groups.get(ohang, []) if n not in fixed and n not in excluded]
         secondary = [n for n in candidates if n not in primary]
         n_primary = min(len(primary), need)
         chosen = random.sample(primary, n_primary)
@@ -348,7 +385,7 @@ def _weighted_sample(population, weights, k) -> list:
     return chosen
 
 
-def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries, max_n, today) -> list:
+def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries, max_n, today, excluded=None) -> list:
     reasons = []
 
     if fixed:
@@ -390,6 +427,13 @@ def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries, max
                 reasons.append(f"이 비율 기준으로 구성 (이번 조합 — 홀 {odd_n}개 : 짝 {even_n}개)")
             else:
                 reasons.append("최근 회차 데이터가 없어 무작위로 추출")
+
+        elif mode in ("exclude1", "exclude2"):
+            rounds = 2 if mode == "exclude2" else 1
+            reasons.append(f"🚫 제외 추출 — 무작위로 {rounds}회 추출한 번호를 후보에서 제외 후 최종 추출")
+            if excluded:
+                reasons.append(f"제외된 번호: {sorted(excluded)}")
+            reasons.append("제외 후 남은 번호 중 무작위 추출")
 
         else:
             reasons.append("순수 무작위 추출")
