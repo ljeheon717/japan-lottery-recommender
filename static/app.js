@@ -141,7 +141,7 @@ function ball(n, cls) {
 }
 
 function modeLabel(mode) {
-  const map = { random: '🎲 랜덤', frequency: '📊 빈도', saju: '☯️ 오행', lucky: '🍀 행운', oddeven: '⚖️ 홀짝' };
+  const map = { random: '🎲 랜덤', frequency: '📊 빈도', saju: '☯️ 오행', lucky: '🍀 행운', oddeven: '⚖️ 홀짝', exclude1: '🚫 1회 제외', exclude2: '🚫🚫 2회 제외' };
   return mode.split('+').map(m => map[m] || m).join(' + ');
 }
 
