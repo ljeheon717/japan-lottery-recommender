@@ -170,10 +170,12 @@ function renderSets(sets, draw) {
       <div class="set-header">
         <span class="set-label">#${i + 1}</span>
         <span class="mode-tag">${modeLabel(s.mode || 'random')}</span>
-        <button class="use-btn" data-idx="${i}" ${round ? '' : 'disabled title="회차 정보를 불러올 수 없어 저장할 수 없습니다"'}>⭐ 이 번호 사용</button>
       </div>
       <div class="numbers">
         ${s.numbers.map(n => ball(n, 'main')).join('')}
+      </div>
+      <div class="set-actions">
+        <button class="use-btn" data-idx="${i}" ${round ? '' : 'disabled title="회차 정보를 불러올 수 없어 저장할 수 없습니다"'}>⭐ 이 번호 사용</button>
       </div>
       ${s.reason && s.reason.length ? `
         <div class="reason">
