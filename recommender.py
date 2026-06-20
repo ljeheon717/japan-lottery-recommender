@@ -155,16 +155,20 @@ def recommend_multi(
     recent = _recent_pool(ltype, max_n)
     ratio = _odd_even_ratio(ltype)
 
+    # 제외 추출은 세트별이 아니라 한 번만 수행 — 모든 세트가 같은 제외 번호를 공유
+    exclude_rounds = 2 if "exclude2" in modes else (1 if "exclude1" in modes else 0)
+    excluded = _build_excluded(list(range(1, max_n + 1)), fixed, pick, exclude_rounds) if exclude_rounds else set()
+
     results = []
     for _ in range(count):
         if len(modes) == 1:
             mode = modes[0]
             r = _pick_one(max_n, pick, bonus_count, mode,
-                          fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today)
+                          fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today, excluded)
             r["mode"] = mode
         else:
             r = _pick_combined(max_n, pick, bonus_count, modes,
-                               fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today)
+                               fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today, excluded)
             r["mode"] = "+".join(modes)
         results.append(r)
     return results
@@ -208,23 +212,23 @@ def _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio=None) 
 
 
 def _pick_combined(max_n, pick, bonus_count, modes,
-                   fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today) -> dict:
+                   fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today,
+                   excluded=None) -> dict:
     pool = list(range(1, max_n + 1))
+    excluded = excluded or set()
     retries = 0
-
-    # exclude1/exclude2 가 조합에 포함되면 무작위 추출 N회분 번호를 후보에서 제외
-    exclude_rounds = 2 if "exclude2" in modes else (1 if "exclude1" in modes else 0)
 
     # lucky가 조합에 포함된 경우: LUCKY_COMBINED_PROB 확률로만 포함 (안 나와도 됨)
     # lucky가 없는 조합: 기존처럼 RECENT_NUM_PROB 확률로 1개만 간헐적으로 포함
+    # (제외 추출 번호는 행운 번호 후보에서도 빼서 제외 일관성 유지)
     lucky_num = None
     if "lucky" in modes:
         if recent and random.random() < LUCKY_COMBINED_PROB:
-            cand_lucky = [n for n in set(recent) if n not in fixed]
+            cand_lucky = [n for n in set(recent) if n not in fixed and n not in excluded]
             if cand_lucky and len(fixed) < pick:
                 lucky_num = random.choice(cand_lucky)
     elif recent and random.random() < RECENT_NUM_PROB:
-        cand_lucky = [n for n in set(recent) if n not in fixed]
+        cand_lucky = [n for n in set(recent) if n not in fixed and n not in excluded]
         if cand_lucky and len(fixed) < pick - 1:
             lucky_num = random.choice(cand_lucky)
 
@@ -232,9 +236,7 @@ def _pick_combined(max_n, pick, bonus_count, modes,
     if lucky_num and lucky_num not in effective_fixed:
         effective_fixed.append(lucky_num)
 
-    excluded = set()
     while True:
-        excluded = _build_excluded(pool, effective_fixed, pick, exclude_rounds) if exclude_rounds else set()
         need = pick - len(effective_fixed)
         candidates = [n for n in pool if n not in effective_fixed and n not in excluded]
         weights = _combined_weights(candidates, modes, freq, ohang, ohang_groups, ratio)
@@ -304,23 +306,23 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
 
 
 def _pick_one(max_n, pick, bonus_count, mode,
-              fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today) -> dict:
+              fixed, past_sets, freq, ohang, ohang_groups, recent, ratio, today,
+              excluded=None) -> dict:
     pool = list(range(1, max_n + 1))
+    excluded = excluded or set()
     retries = 0
-
-    # exclude1/exclude2 모드: 무작위 추출 N회분 번호를 후보에서 제외 후 최종(무작위) 추출
-    exclude_rounds = 2 if mode == "exclude2" else (1 if mode == "exclude1" else 0)
 
     # lucky 모드: 최근 3회차 출현 번호 중 1개를 100% 보장 포함 (그 이상은 가중치 적용 안 함)
     # 그 외 모드: 40% 확률로 1개만 간헐적으로 포함
+    # (제외 추출 번호는 행운 번호 후보에서도 빼서 제외 일관성 유지)
     lucky_num = None
     if mode == "lucky":
         if recent:
-            cand_lucky = [n for n in set(recent) if n not in fixed]
+            cand_lucky = [n for n in set(recent) if n not in fixed and n not in excluded]
             if cand_lucky and len(fixed) < pick:
                 lucky_num = random.choice(cand_lucky)
     elif recent and random.random() < RECENT_NUM_PROB:
-        cand_lucky = [n for n in set(recent) if n not in fixed]
+        cand_lucky = [n for n in set(recent) if n not in fixed and n not in excluded]
         if cand_lucky and len(fixed) < pick - 1:
             lucky_num = random.choice(cand_lucky)
 
@@ -328,9 +330,7 @@ def _pick_one(max_n, pick, bonus_count, mode,
     if lucky_num and lucky_num not in effective_fixed:
         effective_fixed.append(lucky_num)
 
-    excluded = set()
     while True:
-        excluded = _build_excluded(pool, effective_fixed, pick, exclude_rounds) if exclude_rounds else set()
         nums = _sample(pool, pick, effective_fixed, mode, freq, ohang, ohang_groups, max_n, ratio, excluded)
         retries += 1
         if frozenset(nums) not in past_sets:
