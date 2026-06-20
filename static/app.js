@@ -163,12 +163,14 @@ function renderDrawInfo(draw) {
     </div>`;
 }
 
-function renderSets(sets) {
+function renderSets(sets, draw) {
+  const round = draw && draw.round ? draw.round : null;
   return sets.map((s, i) => `
     <div class="result-set">
       <div class="set-header">
         <span class="set-label">#${i + 1}</span>
         <span class="mode-tag">${modeLabel(s.mode || 'random')}</span>
+        <button class="use-btn" data-idx="${i}" ${round ? '' : 'disabled title="회차 정보를 불러올 수 없어 저장할 수 없습니다"'}>⭐ 이 번호 사용</button>
       </div>
       <div class="numbers">
         ${s.numbers.map(n => ball(n, 'main')).join('')}
@@ -180,6 +182,42 @@ function renderSets(sets) {
       ` : ''}
     </div>
   `).join('');
+}
+
+// 추천 세트의 "이 번호 사용" 버튼 → 이력(localStorage)에 저장
+function saveRecommendedSet(ltype, round, numbers) {
+  if (!round || isNaN(round)) return 'noround';
+  const nums = [...new Set(numbers)].sort((a, b) => a - b);
+  const data = loadHistory();
+  if (!data[ltype]) data[ltype] = [];
+  const dup = data[ltype].find(e =>
+    e.round === round &&
+    e.numbers.length === nums.length &&
+    e.numbers.every((v, i) => v === nums[i]));
+  if (dup) return 'dup';
+  const today = new Date().toISOString().slice(0, 10);
+  data[ltype].push({ round, numbers: nums, saved: today });
+  saveHistory(data);
+  delete winCache[ltype];   // 다음 이력 렌더 시 당첨 번호 재조회
+  return 'ok';
+}
+
+function attachUseButtons(sets, draw) {
+  document.querySelectorAll('#generate-result .use-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const set    = sets[parseInt(btn.dataset.idx)];
+      const result = saveRecommendedSet(genType, draw && draw.round, set.numbers);
+      if (result === 'ok') {
+        btn.textContent = '✅ 이력에 저장됨';
+        btn.disabled = true;
+        btn.classList.add('saved');
+      } else if (result === 'dup') {
+        btn.textContent = '이미 저장된 번호';
+        btn.disabled = true;
+        btn.classList.add('saved');
+      }
+    });
+  });
 }
 
 function renderResults(rows) {
@@ -269,7 +307,8 @@ document.getElementById('generate-btn').addEventListener('click', async () => {
       body: JSON.stringify({ modes: [...genModes], fixed }),
     });
     const data = await res.json();
-    el.innerHTML = renderDrawInfo(data.draw) + renderSets(data.results);
+    el.innerHTML = renderDrawInfo(data.draw) + renderSets(data.results, data.draw);
+    attachUseButtons(data.results, data.draw);
   } catch (e) {
     el.innerHTML = `<div class="error">생성 실패: ${e.message}</div>`;
   } finally {
