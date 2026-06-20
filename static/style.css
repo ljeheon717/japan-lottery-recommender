@@ -376,6 +376,31 @@ header .subtitle {
   border: 1px solid rgba(255, 215, 0, 0.25);
   font-weight: 600;
 }
+.use-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid rgba(72, 187, 120, 0.35);
+  border-radius: 8px;
+  background: rgba(72, 187, 120, 0.1);
+  color: #68d391;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.use-btn:hover:not(:disabled) {
+  background: rgba(72, 187, 120, 0.2);
+}
+.use-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+.use-btn.saved {
+  border-color: rgba(160, 174, 192, 0.3);
+  background: rgba(160, 174, 192, 0.12);
+  color: #a0aec0;
+}
 
 /* 추천 이유 */
 .reason {
