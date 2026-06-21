@@ -4,7 +4,7 @@
 - frequency: 전체 이력 빈도 가중치
 - saju     : 음력 일진(천간) 오행 기반
 - lucky    : 최근 3회차 출현 번호 중 1개를 행운 번호로 보장 포함, 나머지는 무작위
-- oddeven  : 최근 회차 당첨 번호의 홀짝 비율을 분석해 가장 빈번한 비율로 구성
+- oddeven  : 전체 이력 당첨 번호의 홀짝 비율을 분석해 가장 빈번한 비율로 구성
 - exclude1 : 무작위로 한 번 추출한 번호를 후보에서 제외한 뒤 최종 추출
 - exclude2 : 무작위 추출을 두 번 해서 나온 번호를 모두 제외한 뒤 최종 추출
 공통: 과거 당첨 조합 항상 제외, 고정 번호
@@ -53,7 +53,8 @@ def _load_past_sets(ltype: str) -> set:
 
 
 def _calc_freq(ltype: str, max_n: int) -> dict:
-    data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
+    # 빈도는 전체 이력 기준
+    data = get_all_history(ltype) or FALLBACK_DATA.get(ltype, [])
     counter = Counter()
     for row in data:
         for n in row["numbers"]:
@@ -88,13 +89,9 @@ def _build_excluded(pool, fixed, pick, rounds) -> set:
     return excluded
 
 
-ODDEVEN_WINDOW = 30  # 홀짝 비율 분석에 사용할 최근 회차 수
-
-
 def _odd_even_ratio(ltype: str) -> Optional[tuple]:
-    """최근 ODDEVEN_WINDOW 회차를 분석해 가장 빈번한 (홀수 개수, 짝수 개수) 비율 반환"""
-    data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
-    rows = data[:ODDEVEN_WINDOW]
+    """전체 이력을 분석해 가장 빈번한 (홀수 개수, 짝수 개수) 비율 반환"""
+    rows = get_all_history(ltype) or FALLBACK_DATA.get(ltype, [])
     if not rows:
         return None
     counter = Counter()
@@ -294,7 +291,7 @@ def _build_combined_reason(nums, modes, fixed, lucky_num, ohang, freq,
     if "oddeven" in modes and ratio:
         odd_n  = sum(1 for n in nums if n % 2 == 1)
         even_n = len(nums) - odd_n
-        reasons.append(f"⚖️ 홀짝 비율 기여 — 최근 {ODDEVEN_WINDOW}회차 분석 결과 홀 {ratio[0]} : 짝 {ratio[1]} 비율이 가장 빈번 (이번 조합 — 홀 {odd_n} : 짝 {even_n})")
+        reasons.append(f"⚖️ 홀짝 비율 기여 — 전체 이력 분석 결과 홀 {ratio[0]} : 짝 {ratio[1]} 비율이 가장 빈번 (이번 조합 — 홀 {odd_n} : 짝 {even_n})")
 
     if "random" in modes and len(modes) > 1:
         reasons.append("랜덤 가중치 포함")
@@ -424,7 +421,7 @@ def _build_reason(nums, mode, fixed, lucky_num, ohang, freq, ratio, retries, max
             if ratio:
                 odd_n  = sum(1 for n in nums if n % 2 == 1)
                 even_n = len(nums) - odd_n
-                reasons.append(f"⚖️ 최근 {ODDEVEN_WINDOW}회차 분석 — 홀수 {ratio[0]}개 : 짝수 {ratio[1]}개 비율이 가장 빈번")
+                reasons.append(f"⚖️ 전체 이력 분석 — 홀수 {ratio[0]}개 : 짝수 {ratio[1]}개 비율이 가장 빈번")
                 reasons.append(f"이 비율 기준으로 구성 (이번 조합 — 홀 {odd_n}개 : 짝 {even_n}개)")
             else:
                 reasons.append("최근 회차 데이터가 없어 무작위로 추출")
