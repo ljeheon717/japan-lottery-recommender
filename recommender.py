@@ -14,7 +14,7 @@ import random
 from collections import Counter
 from datetime import date
 from typing import Optional
-from data import get_history, FALLBACK_DATA
+from data import get_history, get_all_history, FALLBACK_DATA
 
 # ── 오행 ──────────────────────────────────────────
 _CHEONGAN = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
@@ -47,7 +47,8 @@ def _get_ohang(d: date) -> str:
 
 
 def _load_past_sets(ltype: str) -> set:
-    data = get_history(ltype) or FALLBACK_DATA.get(ltype, [])
+    # 전체 과거 회차를 대상으로 제외 (최근 회차 한정 아님)
+    data = get_all_history(ltype) or FALLBACK_DATA.get(ltype, [])
     return {frozenset(row["numbers"]) for row in data}
 
 
