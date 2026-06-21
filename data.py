@@ -8,6 +8,7 @@
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
 import requests as _req
@@ -141,6 +142,40 @@ def get_results(ltype: str, page: int = 1, per_page: int = 50) -> dict:
 def get_history(ltype: str) -> list:
     """추천 엔진용 이력 데이터 (메모리 캐시)"""
     return _get_cached(ltype, pages=2)
+
+
+def get_all_history(ltype: str, max_pages: int = 80, batch: int = 10, workers: int = 8) -> list:
+    """추천 '과거 당첨 조합 제외'용 — 가능한 전체 회차를 가져온다.
+
+    - 페이지를 batch개씩 병렬 요청해 콜드스타트 지연을 줄인다 (Vercel 타임아웃 대비).
+    - 결과는 _mem에 별도 키로 캐시 → warm Lambda에서 재사용.
+    - 50개 미만 페이지(데이터 끝) 또는 빈 페이지를 만나면 중단.
+    """
+    key = f"{ltype}__all"
+    if key in _mem:
+        return _mem[key]
+
+    rows: list = []
+    stop = False
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        start = 1
+        while start <= max_pages and not stop:
+            pages = list(range(start, min(start + batch, max_pages + 1)))
+            fetched = sorted(ex.map(lambda p: (p, _fetch_page(ltype, p)), pages),
+                             key=lambda x: x[0])
+            for _p, page_data in fetched:
+                if not page_data:
+                    stop = True
+                    break
+                rows.extend(page_data)
+                if len(page_data) < 50:   # 데이터 끝
+                    stop = True
+                    break
+            start += batch
+
+    if rows:
+        _mem[key] = rows
+    return rows or FALLBACK_DATA.get(ltype, [])
 
 
 # ── 추첨 일정 ──────────────────────────────────────
